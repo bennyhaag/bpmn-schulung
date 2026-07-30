@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BPMN lesen lernen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F3F4F8;
+    --paper:#FFFFFF;
+    --ink:#1B1F27;
+    --ink-soft:#5B6270;
+    --line:#DEE1E8;
+    --c1:#34409E; --c1-tint:#E7E9F7;
+    --c2:#0E7C86; --c2-tint:#DCF0F1;
+    --c3:#6A3FB5; --c3-tint:#EDE4F7;
+    --c4:#B5541F; --c4-tint:#F7E9DE;
+    --good:#1E8E5A; --good-tint:#E1F3E9;
+    --bad:#C43D30; --bad-tint:#FAE4E1;
+    --font-display:'Space Grotesk',ui-sans-serif,sans-serif;
+    --font-body:'IBM Plex Sans',ui-sans-serif,sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{min-height:100dvh;display:flex;flex-direction:column;}
+  .screen{
+    min-height:100dvh;
+    display:flex;
+    flex-direction:column;
+    padding:24px 20px calc(20px + env(safe-area-inset-bottom));
+    max-width:560px;
+    margin:0 auto;
+    width:100%;
+    animation:fadeIn .35s ease;
+  }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  @media (prefers-reduced-motion: reduce){.screen{animation:none;}}
+
+  /* Intro */
+  .intro{justify-content:center;gap:28px;}
+  .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+  .intro h1{font-family:var(--font-display);font-size:clamp(28px,7vw,38px);font-weight:700;margin:10px 0 12px;line-height:1.15;}
+  .intro p.lead{color:var(--ink-soft);font-size:16px;line-height:1.55;margin:0 0 8px;}
+  .legend{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-direction:column;gap:14px;}
+  .legend li{display:flex;align-items:flex-start;gap:10px;font-size:14px;}
+  .legend .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none;}
+  .legend b{font-family:var(--font-display);font-weight:600;display:block;}
+  .legend .desc{color:var(--ink-soft);}
+  .cta{margin-top:auto;padding-top:24px;}
+  .note{font-size:12.5px;color:var(--ink-soft);margin-top:14px;}
+
+  button.primary{
+    width:100%;padding:16px 20px;border:none;border-radius:14px;
+    background:var(--ink);color:#fff;font-family:var(--font-display);
+    font-weight:600;font-size:16px;cursor:pointer;
+  }
+  button.primary:active{transform:scale(0.98);}
+
+  /* Exercise topbar */
+  .topbar{margin-bottom:2px;}
+  .progress-track{position:relative;display:flex;align-items:center;justify-content:space-between;height:20px;}
+  .track-line{position:absolute;left:3px;right:3px;top:50%;height:2px;background:var(--line);transform:translateY(-50%);z-index:0;}
+  .node{position:relative;z-index:1;width:7px;height:7px;border-radius:50%;background:var(--paper);border:2px solid var(--line);}
+  .node.done{background:var(--ink);border-color:var(--ink);}
+  .node.current{width:12px;height:12px;border-color:var(--c-active);}
+  .node.current::after{
+    content:'';position:absolute;inset:2px;border-radius:50%;background:var(--c-active);
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+  @media (prefers-reduced-motion: reduce){.node.current::after{animation:none;}}
+
+  .meta-row{display:flex;align-items:center;justify-content:space-between;margin-top:12px;}
+  .tag{
+    display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);
+    font-size:11px;font-weight:500;letter-spacing:.03em;padding:5px 11px;border-radius:999px;
+    background:var(--tag-tint);color:var(--tag-color);
+  }
+  .tag .dot{width:6px;height:6px;border-radius:50%;background:var(--tag-color);}
+  .count{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);}
+
+  /* Diagram */
+  .diagram-frame{position:relative;flex:1 1 auto;display:flex;align-items:center;justify-content:center;margin:16px 0;min-height:170px;}
+  .diagram-frame::after{content:'';position:absolute;top:0;right:0;bottom:0;width:28px;background:linear-gradient(to right, transparent, var(--bg));pointer-events:none;}
+  .diagram-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;display:flex;justify-content:flex-start;padding:6px 0;}
+  .bpmn-diagram{height:clamp(150px,30vh,210px);width:auto;display:block;flex-shrink:0;margin:0 auto;}
+  .bpmn-diagram .dtext{font-family:var(--font-body);font-size:15px;font-weight:500;fill:var(--ink);}
+  .bpmn-diagram .ftext{font-family:var(--font-mono);font-size:12px;font-weight:500;fill:var(--ink-soft);}
+
+  /* Question */
+  .question{font-family:var(--font-display);font-size:19px;font-weight:600;line-height:1.35;margin:0 0 14px;}
+  .options{display:flex;flex-direction:column;gap:10px;}
+  .option{
+    text-align:left;width:100%;padding:14px 16px;border-radius:14px;
+    border:1.5px solid var(--line);background:var(--paper);
+    font-family:var(--font-body);font-size:15px;color:var(--ink);
+    cursor:pointer;min-height:48px;line-height:1.35;
+  }
+  .option:active{transform:scale(0.99);}
+  .option.correct{border-color:var(--good);background:var(--good-tint);}
+  .option.incorrect{border-color:var(--bad);background:var(--bad-tint);}
+  .option:disabled{cursor:default;}
+
+  .feedback{margin-top:14px;padding:14px 16px;border-radius:14px;background:var(--paper);border:1.5px solid var(--line);}
+  .feedback.correct{border-color:var(--good);background:var(--good-tint);}
+  .feedback.incorrect{border-color:var(--bad);background:var(--bad-tint);}
+  .feedback .fb-title{font-family:var(--font-display);font-weight:600;font-size:14.5px;margin:0 0 4px;}
+  .feedback p{margin:0;font-size:14px;color:var(--ink-soft);line-height:1.5;}
+  .feedback .fb-actions{margin-top:12px;}
+  button.next-btn{
+    width:100%;padding:13px 18px;border-radius:12px;border:1.5px solid var(--ink);
+    background:var(--ink);color:#fff;font-family:var(--font-display);font-weight:600;
+    font-size:14.5px;cursor:pointer;
+  }
+  button.next-btn:active{transform:scale(0.98);}
+
+  /* Result */
+  .result{justify-content:center;gap:22px;}
+  .result h1{font-family:var(--font-display);font-size:clamp(26px,7vw,34px);margin:6px 0 0;}
+  .result .score{font-family:var(--font-mono);font-size:15px;color:var(--ink-soft);margin:0;}
+  .cat-list{display:flex;flex-direction:column;gap:16px;margin-top:8px;}
+  .cat-row .cat-head{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;}
+  .cat-bar{height:8px;border-radius:999px;background:var(--line);overflow:hidden;}
+  .cat-bar>span{display:block;height:100%;border-radius:999px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* ---------- drawing helpers ---------- */
+function svgWrap(vb, inner){
+  return '<svg class="bpmn-diagram" viewBox="0 0 '+vb[0]+' '+vb[1]+'" xmlns="http://www.w3.org/2000/svg">'
+    + '<defs>'
+    + '<marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#1B1F27"/></marker>'
+    + '<marker id="arrowOpen" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0.5,0.5 L7.5,4.5 L0.5,8.5" fill="none" stroke="#1B1F27" stroke-width="1.4"/></marker>'
+    + '</defs>' + inner + '</svg>';
+}
+function ev(x,y,kind,r){
+  r = r || 18;
+  var w = kind==='end' ? 4 : 2;
+  return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#fff" stroke="#1B1F27" stroke-width="'+w+'"/>';
+}
+function task(cx,cy,w,h,label){
+  var x=cx-w/2, y=cy-h/2;
+  var lines=String(label).split('\n');
+  var lineH=17;
+  var totalH=(lines.length-1)*lineH;
+  var startY=cy-totalH/2+5;
+  var text=lines.map(function(l,i){return '<tspan x="'+cx+'" y="'+(startY+i*lineH)+'">'+l+'</tspan>';}).join('');
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="10" fill="#fff" stroke="#1B1F27" stroke-width="2"/>'
+    + '<text text-anchor="middle" class="dtext">'+text+'</text>';
+}
+function gw(cx,cy,kind,s){
+  s = s || 22;
+  var pts=cx+','+(cy-s)+' '+(cx+s)+','+cy+' '+cx+','+(cy+s)+' '+(cx-s)+','+cy;
+  var sym='';
+  if(kind==='xor'){ var o=s*0.36; sym='<path d="M'+(cx-o)+','+(cy-o)+' L'+(cx+o)+','+(cy+o)+' M'+(cx+o)+','+(cy-o)+' L'+(cx-o)+','+(cy+o)+'" stroke="#1B1F27" stroke-width="2.4" stroke-linecap="round" fill="none"/>'; }
+  if(kind==='and'){ var a=s*0.45; sym='<path d="M'+(cx-a)+','+cy+' H'+(cx+a)+' M'+cx+','+(cy-a)+' V'+(cy+a)+'" stroke="#1B1F27" stroke-width="2.4" stroke-linecap="round" fill="none"/>'; }
+  if(kind==='or'){ var rr=s*0.4; sym='<circle cx="'+cx+'" cy="'+cy+'" r="'+rr+'" fill="none" stroke="#1B1F27" stroke-width="2.4"/>'; }
+  return '<polygon points="'+pts+'" fill="#fff" stroke="#1B1F27" stroke-width="2"/>'+sym;
+}
+function poly(points, opts){
+  opts = opts || {};
+  var d = points.map(function(p,i){return (i===0?'M':'L')+p[0]+','+p[1];}).join(' ');
+  var dash = opts.dashed ? ' stroke-dasharray="6,5"' : '';
+  var marker = opts.message ? 'url(#arrowOpen)' : 'url(#arrow)';
+  var startDot = opts.message ? '<circle cx="'+points[0][0]+'" cy="'+points[0][1]+'" r="4" fill="#fff" stroke="#1B1F27" stroke-width="1.4"/>' : '';
+  return startDot + '<path d="'+d+'" fill="none" stroke="#1B1F27" stroke-width="2"'+dash+' marker-end="'+marker+'"/>';
+}
+function flowLabel(x,y,label){
+  var lines=String(label).split('\n');
+  var lineH=14;
+  var maxLen=0;
+  lines.forEach(function(l){ if(l.length>maxLen) maxLen=l.length; });
+  var w = maxLen*7.3+12;
+  var h = lines.length*lineH+6;
+  var bx = x-w/2, by = y-lineH*0.8-4;
+  var bg = '<rect x="'+bx+'" y="'+by+'" width="'+w+'" height="'+h+'" rx="4" fill="#F3F4F8" fill-opacity="0.94"/>';
+  var text = lines.map(function(l,i){return '<text x="'+x+'" y="'+(y+i*lineH)+'" text-anchor="middle" class="ftext">'+l+'</text>';}).join('');
+  return bg+text;
+}
+function pool(x,y,w,h,label){
+  var colW=34;
+  return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="none" stroke="#1B1F27" stroke-width="2"/>'
+    + '<rect x="'+x+'" y="'+y+'" width="'+colW+'" height="'+h+'" fill="#EEF0F4" stroke="#1B1F27" stroke-width="2"/>'
+    + '<text class="dtext" text-anchor="middle" transform="rotate(-90 '+(x+colW/2)+' '+(y+h/2)+')" x="'+(x+colW/2)+'" y="'+(y+h/2+5)+'">'+label+'</text>';
+}
+
+/* ---------- diagram templates ---------- */
+function tplSingleSymbol(kind, label){
+  var shape='';
+  if(kind==='start-event') shape = ev(150,100,'start',34);
+  else if(kind==='end-event') shape = ev(150,100,'end',34);
+  else if(kind==='task') shape = task(150,100,220,110,label);
+  else shape = gw(150,100,kind,36);
+  return svgWrap([300,200], shape);
+}
+function tplLinear(labelA, labelB){
+  var s='';
+  s+=ev(60,100,'start');
+  s+=task(225,100,170,72,labelA);
+  s+=task(425,100,170,72,labelB);
+  s+=ev(580,100,'end');
+  s+=poly([[78,100],[140,100]]);
+  s+=poly([[310,100],[340,100]]);
+  s+=poly([[510,100],[562,100]]);
+  return svgWrap([640,200], s);
+}
+function tplXorTwoEnds(task0Label, taskUpLabel, taskDownLabel, condUp, condDown){
+  var s='', lbl='';
+  s+=ev(50,140,'start');
+  s+=task(190,140,170,72,task0Label);
+  s+=gw(360,140,'xor');
+  s+=poly([[68,140],[105,140]]);
+  s+=poly([[275,140],[338,140]]);
+  s+=poly([[382,140],[410,140],[410,80],[455,80]]);
+  lbl+=flowLabel(432,56,condUp);
+  s+=task(545,80,180,64,taskUpLabel);
+  s+=poly([[635,80],[672,80]]);
+  s+=ev(690,80,'end');
+  s+=poly([[382,140],[410,140],[410,200],[455,200]]);
+  lbl+=flowLabel(432,228,condDown);
+  s+=task(545,200,180,64,taskDownLabel);
+  s+=poly([[635,200],[672,200]]);
+  s+=ev(690,200,'end');
+  return svgWrap([740,280], s+lbl);
+}
+function tplParallel(gwKind, task0Label, taskUpLabel, taskDownLabel, condUp, condDown){
+  var s='', lbl='';
+  s+=ev(50,140,'start');
+  s+=task(190,140,170,72,task0Label);
+  s+=gw(360,140,gwKind);
+  s+=poly([[68,140],[105,140]]);
+  s+=poly([[275,140],[338,140]]);
+  s+=poly([[382,140],[410,140],[410,80],[455,80]]);
+  if(condUp) lbl+=flowLabel(432,56,condUp);
+  s+=task(555,80,200,64,taskUpLabel);
+  s+=poly([[382,140],[410,140],[410,200],[455,200]]);
+  if(condDown) lbl+=flowLabel(432,228,condDown);
+  s+=task(555,200,200,64,taskDownLabel);
+  s+=poly([[655,80],[690,80],[690,140],[708,140]]);
+  s+=poly([[655,200],[690,200],[690,140],[708,140]]);
+  s+=gw(730,140,gwKind);
+  s+=poly([[752,140],[782,140]]);
+  s+=ev(800,140,'end');
+  return svgWrap([840,280], s+lbl);
+}
+function ex12Svg(){
+  var s='', lbl='';
+  s+=ev(50,150,'start');
+  s+=task(190,150,170,72,'Antrag\neinreichen');
+  s+=poly([[68,150],[105,150]]);
+  s+=poly([[275,150],[348,150]]);
+  s+=gw(370,150,'xor');
+  s+=poly([[392,150],[420,150],[420,90],[460,90]]);
+  lbl+=flowLabel(420,66,'Betrag ≤ 500€');
+  s+=task(545,90,170,64,'Direkt\nauszahlen');
+  s+=poly([[630,90],[667,90]]);
+  s+=ev(685,90,'end');
+  s+=poly([[392,150],[420,150],[420,230],[473,230]]);
+  lbl+=flowLabel(440,192,'Betrag > 500€');
+  s+=gw(495,230,'and');
+  s+=poly([[517,230],[545,230],[545,190],[580,190]]);
+  s+=task(655,190,150,64,'Beleg\nprüfen');
+  s+=poly([[517,230],[545,230],[545,270],[580,270]]);
+  s+=task(655,270,150,64,'Freigabe\neinholen');
+  s+=poly([[730,190],[760,190],[760,230],[778,230]]);
+  s+=poly([[730,270],[760,270],[760,230],[778,230]]);
+  s+=gw(800,230,'and');
+  s+=poly([[822,230],[847,230]]);
+  s+=ev(865,230,'end');
+  return svgWrap([920,340], s+lbl);
+}
+function ex13Svg(){
+  var s='', lbl='';
+  s+=ev(50,130,'start');
+  s+=task(190,130,170,72,'Dokument\nerstellen');
+  s+=task(390,130,170,72,'Dokument\nprüfen');
+  s+=gw(560,130,'xor');
+  s+=poly([[68,130],[105,130]]);
+  s+=poly([[275,130],[305,130]]);
+  s+=poly([[475,130],[538,130]]);
+  s+=poly([[582,130],[632,130]]);
+  lbl+=flowLabel(608,108,'freigegeben');
+  s+=ev(650,130,'end');
+  s+=poly([[560,152],[560,220],[190,220],[190,166]]);
+  lbl+=flowLabel(375,242,'Fehler gefunden');
+  return svgWrap([700,270], s+lbl);
+}
+function ex14Svg(){
+  var s='';
+  s+=pool(20,20,700,140,'Kunde');
+  s+=pool(20,180,700,140,'Verkäufer');
+  s+=ev(90,90,'start');
+  s+=task(210,90,170,64,'Bestellung\naufgeben');
+  s+=poly([[108,90],[125,90]]);
+  s+=poly([[295,90],[362,90]]);
+  s+=ev(380,90,'end');
+  s+=ev(210,250,'start');
+  s+=task(350,250,170,64,'Bestellung\nbearbeiten');
+  s+=poly([[228,250],[265,250]]);
+  s+=poly([[435,250],[455,250]]);
+  s+=task(540,250,170,64,'Ware\nversenden');
+  s+=poly([[625,250],[662,250]]);
+  s+=ev(680,250,'end');
+  s+=poly([[210,122],[210,232]], {message:true, dashed:true});
+  return svgWrap([740,340], s);
+}
+function ex15Svg(){
+  var s='';
+  s+=ev(60,100,'start');
+  s+=task(225,100,170,72,'Anfrage\nbearbeiten');
+  s+=task(425,100,170,72,'Antwort\nsenden');
+  s+=poly([[78,100],[140,100]]);
+  s+=poly([[310,100],[340,100]]);
+  s+=poly([[510,100],[600,100]]);
+  return svgWrap([640,200], s);
+}
+function ex16Svg(){
+  var s='';
+  s+=ev(50,140,'start');
+  s+=task(190,140,170,72,'Auftrag\nerhalten');
+  s+=poly([[68,140],[105,140]]);
+  s+=poly([[275,140],[338,140]]);
+  s+=gw(360,140,'and');
+  s+=poly([[382,140],[410,140],[410,80],[455,80]]);
+  s+=task(545,80,180,72,'Material\nbestellen');
+  s+=poly([[382,140],[410,140],[410,200],[455,200]]);
+  s+=task(545,200,180,72,'Produktion\nplanen');
+  s+=poly([[635,80],[665,80],[665,140],[678,140]]);
+  s+=poly([[635,200],[665,200],[665,140],[678,140]]);
+  s+=gw(700,140,'xor');
+  s+=poly([[722,140],[760,140]]);
+  s+=task(845,140,170,72,'Fertigung\nstarten');
+  s+=poly([[930,140],[952,140]]);
+  s+=ev(970,140,'end');
+  return svgWrap([1020,300], s);
+}
+function ex17Svg(){
+  var s='';
+  s+=ev(50,140,'start');
+  s+=task(190,140,170,72,'Zahlung\nerhalten');
+  s+=poly([[68,140],[105,140]]);
+  s+=poly([[275,140],[310,140],[310,80],[375,80]]);
+  s+=task(460,80,170,64,'Ware\nversenden');
+  s+=poly([[545,80],[582,80]]);
+  s+=ev(600,80,'end');
+  s+=poly([[275,140],[310,140],[310,200],[375,200]]);
+  s+=task(460,200,170,64,'Rechnung\narchivieren');
+  s+=poly([[545,200],[582,200]]);
+  s+=ev(600,200,'end');
+  return svgWrap([660,280], s);
+}
+function ex18Svg(){
+  var s='';
+  s+=ev(50,100,'start');
+  s+=task(220,100,170,72,'Vorgang\nabschließen');
+  s+=ev(370,100,'end');
+  s+=task(530,100,170,72,'Archivieren');
+  s+=ev(660,100,'end');
+  s+=poly([[68,100],[135,100]]);
+  s+=poly([[305,100],[352,100]]);
+  s+=poly([[388,100],[445,100]]);
+  s+=poly([[615,100],[642,100]]);
+  return svgWrap([720,200], s);
+}
+
+/* ---------- categories ---------- */
+var CATEGORIES = {
+  symbols:  { label:'Symbole lesen',       color:'var(--c1)', tint:'var(--c1-tint)' },
+  flow:     { label:'Ablauf verstehen',     color:'var(--c2)', tint:'var(--c2-tint)' },
+  gateways: { label:'Gateways analysieren', color:'var(--c3)', tint:'var(--c3-tint)' },
+  errors:   { label:'Fehler finden',        color:'var(--c4)', tint:'var(--c4-tint)' }
+};
+
+/* ---------- exercises ---------- */
+var EXERCISES = [
+  { category:'symbols', question:'Welches Element ist hier dargestellt?',
+    svg:function(){return tplSingleSymbol('start-event');},
+    options:['Start-Ereignis','End-Ereignis','Aufgabe (Task)','Zwischenereignis'], correct:0,
+    explanation:'Ein Start-Ereignis wird als dünner Kreis dargestellt und markiert den Beginn eines Prozesses.' },
+  { category:'symbols', question:'Und dieses Element?',
+    svg:function(){return tplSingleSymbol('end-event');},
+    options:['Start-Ereignis','End-Ereignis','Zwischenereignis','Gateway'], correct:1,
+    explanation:'Ein End-Ereignis hat einen deutlich dickeren Rand als ein Start-Ereignis und markiert das Ende eines Prozesspfads.' },
+  { category:'symbols', question:'Welches Element ist hier zu sehen?',
+    svg:function(){return tplSingleSymbol('task','Rechnung\nprüfen');},
+    options:['Ereignis','Gateway','Aufgabe (Task)','Pool'], correct:2,
+    explanation:'Aufgaben (Tasks) werden als abgerundete Rechtecke dargestellt und stehen für einen konkreten Arbeitsschritt.' },
+  { category:'symbols', question:'Welcher Gateway-Typ wird hier dargestellt?',
+    svg:function(){return tplSingleSymbol('xor');},
+    options:['Exklusives Gateway (XOR)','Paralleles Gateway (AND)','Inklusives Gateway (OR)','Ereignisbasiertes Gateway'], correct:0,
+    explanation:'Das X im Diamant kennzeichnet ein exklusives Gateway: Es wird genau ein ausgehender Pfad gewählt.' },
+  { category:'symbols', question:'Und dieser Gateway-Typ?',
+    svg:function(){return tplSingleSymbol('and');},
+    options:['Exklusives Gateway (XOR)','Paralleles Gateway (AND)','Inklusives Gateway (OR)','Ereignisbasiertes Gateway'], correct:1,
+    explanation:'Das Plus-Symbol zeigt ein paralleles Gateway: Alle ausgehenden Pfade werden gleichzeitig ausgeführt.' },
+  { category:'symbols', question:'Und dieser Gateway-Typ?',
+    svg:function(){return tplSingleSymbol('or');},
+    options:['Exklusives Gateway (XOR)','Paralleles Gateway (AND)','Inklusives Gateway (OR)','Ereignisbasiertes Gateway'], correct:2,
+    explanation:'Der offene Kreis im Diamant steht für ein inklusives Gateway: Ein oder mehrere zutreffende Pfade werden ausgeführt.' },
+
+  { category:'flow', question:'In welcher Reihenfolge laufen die beiden Aufgaben ab?',
+    svg:function(){return tplLinear('Bestellung\nerfassen','Ware\nversenden');},
+    options:['Ware versenden, dann Bestellung erfassen','Bestellung erfassen, dann Ware versenden','Beide gleichzeitig','Die Reihenfolge ist offen'], correct:1,
+    explanation:'Die Pfeile (Sequenzflüsse) geben die Reihenfolge fest vor: zuerst „Bestellung erfassen", danach „Ware versenden".' },
+  { category:'flow', question:'Wie viele der beiden Aufgaben werden in einem Durchlauf ausgeführt?',
+    svg:function(){return tplXorTwoEnds('Antrag\nprüfen','Genehmigung\nversenden','Absage\nversenden','genehmigt','abgelehnt');},
+    options:['Immer beide','Genau eine, abhängig von der Bedingung','Keine','Das hängt vom Zufall ab'], correct:1,
+    explanation:'Das exklusive Gateway (XOR) lässt nur einen Pfad zu - je nachdem, ob der Antrag genehmigt oder abgelehnt wurde.' },
+  { category:'flow', question:'Wie viele der beiden Aufgaben werden ausgeführt?',
+    svg:function(){return tplParallel('and','Bestellung\nerhalten','Ware\nkommissionieren','Rechnung\nerstellen');},
+    options:['Nur eine, je nach Bedingung','Beide, gleichzeitig','Beide, aber nacheinander','Keine, das Gateway blockiert'], correct:1,
+    explanation:'Das parallele Gateway (AND) aktiviert alle ausgehenden Pfade gleichzeitig - beide Aufgaben laufen parallel.' },
+  { category:'flow', question:'Wann wird die Aufgabe „Absage senden" ausgeführt?',
+    svg:function(){return tplXorTwoEnds('Bewerbung\nsichten','Zum Interview\neinladen','Absage\nsenden','Profil passt','Profil passt\nnicht');},
+    options:['Immer','Wenn das Profil passt','Wenn das Profil nicht passt','Nur wenn beide Bedingungen zutreffen'], correct:2,
+    explanation:'Die Beschriftung am Pfeil nach dem Gateway zeigt die Bedingung, unter der dieser Pfad gewählt wird.' },
+
+  { category:'gateways', question:'Wie viele der beiden Pfade können in einem Durchlauf gleichzeitig aktiv sein?',
+    svg:function(){return tplParallel('or','Bestellwert\nprüfen','Rabatt\ngewähren','Geschenk\nhinzufügen','Bestellwert\n> 50€','Kunde ist\nNeukunde');},
+    options:['Immer nur einer, wie beim XOR-Gateway','Einer oder mehrere, je nachdem wie viele Bedingungen zutreffen','Immer alle, wie beim AND-Gateway','Keiner, das Gateway wartet auf ein Ereignis'], correct:1,
+    explanation:'Beim inklusiven Gateway (OR) wird jeder Pfad aktiviert, dessen Bedingung zutrifft - das können eine, mehrere oder alle sein.' },
+  { category:'gateways', question:'Im folgenden Prozess wird ein Reisekostenantrag eingereicht. Welche zwei Aufgaben können gleichzeitig (parallel) ausgeführt werden?',
+    svg:function(){return ex12Svg();},
+    options:['„Direkt auszahlen" und „Beleg prüfen"','„Beleg prüfen" und „Freigabe einholen"','„Antrag einreichen" und „Direkt auszahlen"','Keine, alle Aufgaben laufen nacheinander'], correct:1,
+    explanation:'Nur die beiden Aufgaben nach dem parallelen Gateway laufen gleichzeitig. Das exklusive Gateway davor sorgt dafür, dass überhaupt nur einer der beiden Hauptpfade betreten wird.' },
+  { category:'gateways', question:'Was passiert, wenn bei der Prüfung ein Fehler gefunden wird?',
+    svg:function(){return ex13Svg();},
+    options:['Der Prozess endet sofort','Der Prozess kehrt zur Aufgabe „Dokument erstellen" zurück','Die Aufgabe „Dokument prüfen" wird übersprungen','Es wird automatisch ein neuer Prozess gestartet'], correct:1,
+    explanation:'Der Sequenzfluss zurück zu „Dokument erstellen" bildet eine Schleife: Bei einem Fehler wird das Dokument überarbeitet, bevor es erneut geprüft wird.' },
+  { category:'gateways', question:'Was zeigt die gestrichelte Linie zwischen den beiden Pools?',
+    svg:function(){return ex14Svg();},
+    options:['Einen Sequenzfluss innerhalb eines Prozesses','Einen Nachrichtenfluss zwischen zwei Teilnehmern','Eine Fehlermeldung','Eine optionale Aufgabe'], correct:1,
+    explanation:'Gestrichelte Pfeile zwischen Pools sind Nachrichtenflüsse: Sie zeigen Kommunikation zwischen unterschiedlichen Teilnehmern, nicht die Reihenfolge innerhalb eines Prozesses.' },
+
+  { category:'errors', question:'Was ist an diesem Prozess unsauber modelliert?',
+    svg:function(){return ex15Svg();},
+    options:['Es fehlt ein Gateway','Es fehlt ein End-Ereignis','Die beiden Aufgaben sind falsch verbunden','Es fehlt eine Verzweigung'], correct:1,
+    explanation:'Jeder Prozesspfad sollte mit einem End-Ereignis abgeschlossen werden. Hier läuft der Sequenzfluss einfach ins Leere.' },
+  { category:'errors', question:'Was ist an diesem Diagramm problematisch?',
+    svg:function(){return ex16Svg();},
+    options:['Das Gateway wurde als paralleles Split geöffnet, aber als exklusives Gateway geschlossen','Es gibt zu viele Aufgaben','Der Prozess hat kein Start-Ereignis','Die Aufgaben laufen in der falschen Reihenfolge'], correct:0,
+    explanation:'Ein als AND geöffneter Split sollte auch mit einem AND geschlossen werden. Ein XOR-Join würde „Fertigung starten" hier zweimal auslösen - einmal pro eingehendem Pfad.' },
+  { category:'errors', question:'Was ist an diesem Diagramm unklar modelliert?',
+    svg:function(){return ex17Svg();},
+    options:['Die Aufgabe „Zahlung erhalten" hat zwei ausgehende Sequenzflüsse ohne Gateway','Es fehlen Bedingungen an den Pfeilen','Es gibt zwei Start-Ereignisse','Die Aufgaben sind nicht miteinander verbunden'], correct:0,
+    explanation:'Verzweigt ein Ablauf, gehört ein Gateway dazu. Ohne XOR- oder AND-Gateway bleibt unklar, ob beide Pfade parallel oder nur einer davon laufen sollen.' },
+  { category:'errors', question:'Was ist an diesem Diagramm nicht zulässig?',
+    svg:function(){return ex18Svg();},
+    options:['Ein End-Ereignis hat einen ausgehenden Sequenzfluss','Es gibt zwei End-Ereignisse','Die Aufgabe „Archivieren" ist überflüssig','Es fehlt ein Gateway vor dem End-Ereignis'], correct:0,
+    explanation:'Ein End-Ereignis beendet einen Pfad endgültig - danach darf kein weiterer Sequenzfluss mehr abgehen. „Archivieren" müsste vor dem End-Ereignis eingefügt werden.' },
+  { category:'errors', question:'Was ist an der Beschriftung der ersten Aufgabe unsauber modelliert?',
+    svg:function(){return tplLinear('Anfrage','Antwort\nversenden');},
+    options:['Die Aufgabe hat keinen aussagekräftigen Namen - es fehlt ein Verb, das die Tätigkeit beschreibt','Die Aufgabe ist zu lang beschriftet','Die Aufgabe müsste als Ereignis modelliert werden','Die Reihenfolge der beiden Aufgaben ist vertauscht'], correct:0,
+    explanation:'Aktivitäten sollten aktiv formuliert werden, also mit Verb und Objekt - zum Beispiel „Anfrage bearbeiten" statt nur „Anfrage". Eine reine Substantiv-Beschriftung lässt offen, was in diesem Schritt eigentlich passiert.' }
+];
+
+/* ---------- app state & rendering ---------- */
+var root = document.getElementById('app');
+var state = { current:0, score:0, results:[], answered:false, advancing:false };
+
+function tierMessage(pct){
+  if(pct>=90) return 'Stark gelesen.';
+  if(pct>=70) return 'Gut unterwegs.';
+  if(pct>=50) return 'Auf dem richtigen Weg.';
+  return 'Übung lohnt sich.';
+}
+
+function renderIntro(){
+  root.innerHTML =
+    '<div class="screen intro">'
+    + '<div>'
+    + '<div class="eyebrow">BPMN Training</div>'
+    + '<h1>BPMN lesen lernen</h1>'
+    + '<p class="lead">'+EXERCISES.length+' kurze Übungen, mit denen du Prozessdiagramme sicher lesen, verstehen und kritisch prüfen kannst - ganz ohne Zeitdruck.</p>'
+    + '<ul class="legend">'
+    + '<li><span class="dot" style="background:var(--c1)"></span><div><b>Symbole lesen</b><span class="desc">Elemente erkennen</span></div></li>'
+    + '<li><span class="dot" style="background:var(--c2)"></span><div><b>Ablauf verstehen</b><span class="desc">Reihenfolgen und Verzweigungen lesen</span></div></li>'
+    + '<li><span class="dot" style="background:var(--c3)"></span><div><b>Gateways analysieren</b><span class="desc">Verzweigungslogik durchschauen</span></div></li>'
+    + '<li><span class="dot" style="background:var(--c4)"></span><div><b>Fehler finden</b><span class="desc">Modellierungsfehler aufspüren</span></div></li>'
+    + '</ul>'
+    + '<p class="note">Nimm dir für jede Aufgabe so viel Zeit, wie du möchtest - es gibt kein Zeitlimit.</p>'
+    + '</div>'
+    + '<div class="cta"><button class="primary" id="startBtn">Training starten</button></div>'
+    + '</div>';
+  document.getElementById('startBtn').addEventListener('click', start);
+}
+
+function start(){
+  state.current=0; state.score=0; state.results=[]; state.answered=false; state.advancing=false;
+  renderExercise();
+}
+
+function renderExercise(){
+  state.advancing = false;
+  var ex = EXERCISES[state.current];
+  var cat = CATEGORIES[ex.category];
+  var total = EXERCISES.length;
+  var progressHtml = EXERCISES.map(function(_,i){
+    var cls='node';
+    if(i<state.current) cls+=' done';
+    if(i===state.current) cls+=' current';
+    return '<span class="'+cls+'"></span>';
+  }).join('');
+  root.innerHTML =
+    '<div class="screen exercise">'
+    + '<header class="topbar">'
+    + '<div class="progress-track" style="--c-active:'+cat.color+'">'
+    + '<div class="track-line"></div>'+progressHtml
+    + '</div>'
+    + '<div class="meta-row">'
+    + '<span class="tag" style="--tag-color:'+cat.color+';--tag-tint:'+cat.tint+'"><span class="dot"></span>'+cat.label+'</span>'
+    + '<span class="count">'+String(state.current+1).padStart(2,'0')+' / '+total+'</span>'
+    + '</div>'
+    + '</header>'
+    + '<div class="diagram-frame"><div class="diagram-scroll">'+ex.svg()+'</div></div>'
+    + '<div class="question-area">'
+    + '<h2 class="question">'+ex.question+'</h2>'
+    + '<div class="options">'+ex.options.map(function(opt,i){return '<button class="option" data-i="'+i+'">'+opt+'</button>';}).join('')+'</div>'
+    + '<div class="feedback" id="feedback" hidden></div>'
+    + '</div>'
+    + '</div>';
+  var btns = Array.prototype.slice.call(document.querySelectorAll('.option'));
+  btns.forEach(function(b){
+    b.addEventListener('click', function(){ selectOption(parseInt(b.dataset.i,10), ex, btns); });
+  });
+}
+
+function selectOption(i, ex, btns){
+  if(state.answered) return;
+  state.answered = true;
+  var correct = (i === ex.correct);
+  btns.forEach(function(b,idx){
+    b.disabled = true;
+    if(idx===ex.correct) b.classList.add('correct');
+    else if(idx===i) b.classList.add('incorrect');
+  });
+  if(correct) state.score++;
+  state.results.push({category:ex.category, correct:correct});
+  var isLast = (state.current === EXERCISES.length-1);
+  var fb = document.getElementById('feedback');
+  fb.hidden = false;
+  fb.classList.add(correct?'correct':'incorrect');
+  fb.innerHTML = '<p class="fb-title">'+(correct?'Richtig.':'Nicht ganz.')+'</p><p>'+ex.explanation+'</p>'
+    + '<div class="fb-actions"><button class="next-btn" id="nextBtn">'+(isLast?'Ergebnis ansehen':'Nächste Aufgabe')+'</button></div>';
+  document.getElementById('nextBtn').addEventListener('click', nextExercise);
+  document.getElementById('nextBtn').focus();
+}
+
+function nextExercise(){
+  if(state.advancing) return;
+  state.advancing = true;
+  state.answered = false;
+  state.current++;
+  if(state.current >= EXERCISES.length) renderResult();
+  else renderExercise();
+}
+
+function renderResult(){
+  state.advancing = false;
+  var total = EXERCISES.length;
+  var pct = Math.round(state.score/total*100);
+  var byCat = {};
+  Object.keys(CATEGORIES).forEach(function(k){ byCat[k]={correct:0,total:0}; });
+  state.results.forEach(function(r){ byCat[r.category].total++; if(r.correct) byCat[r.category].correct++; });
+  var rows = Object.keys(CATEGORIES).map(function(k){
+    var c = CATEGORIES[k], d = byCat[k];
+    var p = d.total ? Math.round(d.correct/d.total*100) : 0;
+    return '<div class="cat-row">'
+      + '<div class="cat-head"><span>'+c.label+'</span><span>'+d.correct+' / '+d.total+'</span></div>'
+      + '<div class="cat-bar"><span style="width:'+p+'%;background:'+c.color+'"></span></div>'
+      + '</div>';
+  }).join('');
+  root.innerHTML =
+    '<div class="screen result">'
+    + '<div class="eyebrow">Ergebnis</div>'
+    + '<h1>'+tierMessage(pct)+'</h1>'
+    + '<p class="score">'+state.score+' von '+total+' Aufgaben richtig gelöst.</p>'
+    + '<div class="cat-list">'+rows+'</div>'
+    + '<div class="cta"><button class="primary" id="restartBtn">Nochmal von vorn</button></div>'
+    + '</div>';
+  document.getElementById('restartBtn').addEventListener('click', start);
+}
+
+renderIntro();
+</script>
+</body>
+</html>
