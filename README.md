@@ -1,2 +1,2 @@
 # bpmn-schulung
-Repo für eine BPMN Schlung.
+Repo für eine BPMN Schulung.
