@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<meta name="theme-color" content="#F3F4F8">
+<meta name="darkreader-lock">
 <title>BPMN lesen lernen</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,14 +33,19 @@
     --font-mono:'IBM Plex Mono',ui-monospace,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  /* Two declarations on purpose: the first is the fallback, the second is the
+     stronger opt-out that tells browsers not to auto-darken this page. */
+  :root{ color-scheme: light; }
+  :root{ color-scheme: only light; }
+  html{margin:0;padding:0;background-color:#F3F4F8;color:#1B1F27;}
   body{
-    background:var(--bg);
+    margin:0;padding:0;
+    background-color:var(--bg);
     color:var(--ink);
     font-family:var(--font-body);
     -webkit-font-smoothing:antialiased;
   }
-  #app{min-height:100dvh;display:flex;flex-direction:column;}
+  #app{min-height:100dvh;display:flex;flex-direction:column;background-color:var(--bg);}
   .screen{
     min-height:100dvh;
     display:flex;
@@ -81,7 +89,7 @@
   button.primary:active{transform:scale(0.98);}
   button.secondary{
     width:100%;padding:14px 20px;border-radius:14px;border:1.5px solid var(--line);
-    background:none;color:var(--ink);font-family:var(--font-display);font-weight:600;
+    background-color:var(--paper);color:var(--ink);font-family:var(--font-display);font-weight:600;
     font-size:15px;cursor:pointer;
   }
   button.secondary:active{transform:scale(0.98);}
@@ -89,7 +97,7 @@
   .section-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px;}
   .section-label{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);min-width:0;}
   .reset-link{
-    background:none;border:none;padding:2px 0;flex:none;cursor:pointer;
+    background-color:transparent;border:none;padding:2px 0;flex:none;cursor:pointer;
     font-family:var(--font-mono);font-size:11px;letter-spacing:.03em;
     color:var(--ink-soft);text-decoration:underline;text-underline-offset:2px;
   }
@@ -114,7 +122,7 @@
   .meta-row{display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:10px;}
   .meta-left{display:flex;align-items:center;gap:8px;min-width:0;}
   .back-link{
-    display:inline-flex;align-items:center;gap:3px;background:none;border:none;padding:2px 2px;
+    display:inline-flex;align-items:center;gap:3px;background-color:transparent;border:none;padding:2px 2px;
     font-family:var(--font-body);font-size:13px;font-weight:500;color:var(--ink-soft);cursor:pointer;flex:none;
   }
   .tag{
@@ -126,9 +134,14 @@
   .count{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);flex:none;}
 
   /* Diagram */
-  .diagram-frame{position:relative;flex:1 1 auto;display:flex;align-items:center;justify-content:center;margin:16px 0;min-height:170px;}
+  .diagram-frame{
+    position:relative;flex:1 1 auto;display:flex;align-items:center;justify-content:center;
+    margin:16px 0;min-height:170px;padding:8px 0;
+    background-color:var(--paper);border:1px solid var(--line);border-radius:16px;
+  }
   .diagram-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;display:flex;justify-content:flex-start;padding:6px 0;}
   .bpmn-diagram{height:clamp(150px,30vh,215px);width:auto;display:block;flex-shrink:0;margin:0 auto;}
+  .bpmn-diagram .diagram-bg{fill:var(--paper);}
   .bpmn-diagram .dtext{font-family:var(--font-body);font-size:15px;font-weight:500;fill:var(--ink);}
   .bpmn-diagram .ftext{font-family:var(--font-mono);font-size:12px;font-weight:500;fill:var(--ink-soft);}
   .bpmn-diagram .shape{fill:var(--paper);stroke:var(--ink);}
@@ -137,7 +150,7 @@
   .bpmn-diagram .flow{stroke:var(--ink);fill:none;}
   .bpmn-diagram .flow-dot{fill:var(--paper);stroke:var(--ink);}
   .bpmn-diagram .lane-tab{fill:var(--diagram-tint);stroke:var(--ink);}
-  .bpmn-diagram .label-bg{fill:var(--diagram-tint);}
+  .bpmn-diagram .label-bg{fill:var(--paper);}
   .bpmn-diagram .arrow-fill{fill:var(--ink);}
   .bpmn-diagram .arrow-stroke{stroke:var(--ink);fill:none;}
   .bpmn-diagram .mark-hollow{fill:var(--paper);stroke:var(--ink);stroke-width:1.8;}
@@ -205,7 +218,9 @@ function svgWrap(vb, inner){
     + '<defs>'
     + '<marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path class="arrow-fill" d="M0,0 L8,4 L0,8 Z"/></marker>'
     + '<marker id="arrowOpen" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path class="arrow-stroke" d="M0.5,0.5 L7.5,4.5 L0.5,8.5" stroke-width="1.4"/></marker>'
-    + '</defs>' + inner + '</svg>';
+    + '</defs>'
+    + '<rect class="diagram-bg" x="0" y="0" width="'+vb[0]+'" height="'+vb[1]+'"/>'
+    + inner + '</svg>';
 }
 
 /* ---------- event type markers ---------- */
