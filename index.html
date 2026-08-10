@@ -56,11 +56,20 @@
   .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
   .intro h1{font-family:var(--font-display);font-size:clamp(28px,7vw,38px);font-weight:700;margin:10px 0 12px;line-height:1.15;}
   .intro p.lead{color:var(--ink-soft);font-size:16px;line-height:1.55;margin:0 0 8px;}
-  .legend{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-direction:column;gap:13px;}
-  .legend li{display:flex;align-items:flex-start;gap:10px;font-size:14px;}
-  .legend .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none;}
-  .legend b{font-family:var(--font-display);font-weight:600;display:block;}
-  .legend .desc{color:var(--ink-soft);}
+  .jump-hint{font-size:13px;color:var(--ink-soft);margin:22px 0 10px;}
+  .section-list{display:flex;flex-direction:column;gap:8px;}
+  .section-btn{
+    width:100%;display:flex;align-items:center;gap:12px;text-align:left;
+    padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);
+    background:var(--paper);cursor:pointer;font-family:var(--font-body);
+    color:var(--ink);min-height:48px;
+  }
+  .section-btn:active{transform:scale(0.99);}
+  .section-btn .dot{width:10px;height:10px;border-radius:50%;flex:none;}
+  .section-btn .txt{min-width:0;flex:1;}
+  .section-btn b{font-family:var(--font-display);font-weight:600;font-size:14.5px;display:block;}
+  .section-btn .desc{color:var(--ink-soft);font-size:12.5px;line-height:1.4;display:block;}
+  .section-btn .chev{color:var(--ink-soft);font-size:17px;line-height:1;flex:none;}
   .cta{margin-top:auto;padding-top:24px;display:flex;flex-direction:column;gap:10px;}
   .note{font-size:12.5px;color:var(--ink-soft);margin-top:14px;}
 
@@ -1240,13 +1249,13 @@ var EXERCISES = [
    SECTIONS
    ============================================================ */
 var SECTIONS = [
-  {key:'symbols',  title:'Symbole lesen'},
-  {key:'flow',     title:'Ablauf verstehen'},
-  {key:'gateways', title:'Gateways analysieren'},
-  {key:'errors',   title:'Fehler finden'},
-  {key:'final',    title:'Abschlussquiz'}
+  {key:'symbols',  title:'Symbole lesen',        desc:'Alle wichtigen Elemente erkennen'},
+  {key:'flow',     title:'Ablauf verstehen',     desc:'Reihenfolgen, Warten und Zusammenspiel'},
+  {key:'gateways', title:'Gateways analysieren', desc:'Verzweigungslogik durchschauen'},
+  {key:'errors',   title:'Fehler finden',        desc:'Modellierungsfehler aufspüren'},
+  {key:'final',    title:'Abschlussquiz',        desc:'Neue, fordernde Aufgaben zum Schluss'}
 ].map(function(m){
-  return { key:m.key, title:m.title, exercises: EXERCISES.filter(function(e){ return e.category===m.key; }) };
+  return { key:m.key, title:m.title, desc:m.desc, exercises: EXERCISES.filter(function(e){ return e.category===m.key; }) };
 });
 
 /* ============================================================
@@ -1339,6 +1348,10 @@ function sectionScore(secIdx){
   exs.forEach(function(ex,i){ if(answers[i]===ex.correct) correct++; });
   return { correct:correct, total:exs.length };
 }
+function sectionAttempted(secIdx){
+  var answers = state.answers[secIdx] || [];
+  return answers.some(function(a){ return a !== null && a !== undefined; });
+}
 function nextLabelFor(sectionIdx, posIdx){
   var exs = SECTIONS[sectionIdx].exercises;
   if(posIdx < exs.length-1) return 'Nächste Aufgabe';
@@ -1350,26 +1363,31 @@ function feedbackMarkup(ex, wasCorrect, nextLabel){
 }
 
 function renderIntro(){
-  var counts = SECTIONS.map(function(s){ return s.exercises.length; });
+  var cards = SECTIONS.map(function(s,i){
+    return '<button type="button" class="section-btn" data-sec="'+i+'">'
+      + '<span class="dot" style="background:'+CATEGORIES[s.key].color+'"></span>'
+      + '<span class="txt"><b>'+s.title+'</b>'
+      + '<span class="desc">'+s.desc+' · '+s.exercises.length+' Aufgaben</span></span>'
+      + '<span class="chev">&rsaquo;</span>'
+      + '</button>';
+  }).join('');
   root.innerHTML =
     '<div class="screen intro">'
     + '<div>'
     + '<div class="eyebrow">BPMN Training</div>'
     + '<h1>BPMN lesen lernen</h1>'
-    + '<p class="lead">'+EXERCISES.length+' Übungen in 5 Abschnitten - vom einzelnen Symbol bis zum Abschlussquiz. Ganz ohne Zeitdruck.</p>'
-    + '<ul class="legend">'
-    + '<li><span class="dot" style="background:var(--c1)"></span><div><b>Symbole lesen</b><span class="desc">Alle wichtigen Elemente erkennen · '+counts[0]+' Aufgaben</span></div></li>'
-    + '<li><span class="dot" style="background:var(--c2)"></span><div><b>Ablauf verstehen</b><span class="desc">Reihenfolgen, Warten und Zusammenspiel · '+counts[1]+' Aufgaben</span></div></li>'
-    + '<li><span class="dot" style="background:var(--c3)"></span><div><b>Gateways analysieren</b><span class="desc">Verzweigungslogik durchschauen · '+counts[2]+' Aufgaben</span></div></li>'
-    + '<li><span class="dot" style="background:var(--c4)"></span><div><b>Fehler finden</b><span class="desc">Modellierungsfehler aufspüren · '+counts[3]+' Aufgaben</span></div></li>'
-    + '<li><span class="dot" style="background:var(--c5)"></span><div><b>Abschlussquiz</b><span class="desc">Neue, fordernde Aufgaben zum Schluss · '+counts[4]+' Aufgaben</span></div></li>'
-    + '</ul>'
+    + '<p class="lead">'+EXERCISES.length+' Übungen in '+SECTIONS.length+' Abschnitten - vom einzelnen Symbol bis zum Abschlussquiz. Ganz ohne Zeitdruck.</p>'
+    + '<p class="jump-hint">Tippe auf einen Abschnitt, um direkt dort einzusteigen:</p>'
+    + '<div class="section-list">'+cards+'</div>'
     + '<p class="note">Nach jedem Abschnitt gibt es ein Zwischenfazit - dort kannst du den Abschnitt wiederholen oder weitergehen.</p>'
     + '</div>'
-    + '<div class="cta"><button class="primary" id="startBtn">Training starten</button></div>'
+    + '<div class="cta"><button class="primary" id="startBtn">Von Anfang an starten</button></div>'
     + '</div>';
   clearProgress();
   document.getElementById('startBtn').addEventListener('click', start);
+  Array.prototype.slice.call(document.querySelectorAll('.section-btn')).forEach(function(b){
+    b.addEventListener('click', function(){ startAtSection(parseInt(b.dataset.sec,10)); });
+  });
 }
 
 function initSection(secIdx){
@@ -1378,14 +1396,19 @@ function initSection(secIdx){
   state.shuffles[secIdx] = exs.map(function(e){ return shuffledIndices(e.options.length); });
 }
 
-function start(){
-  state.sectionIdx = 0;
+function startAtSection(secIdx){
+  if(typeof secIdx !== 'number' || secIdx < 0 || secIdx >= SECTIONS.length) secIdx = 0;
+  state.sectionIdx = secIdx;
   state.posIdx = 0;
   state.answers = [];
   state.shuffles = [];
   SECTIONS.forEach(function(_,i){ initSection(i); });
   state.advancing = false;
   renderExercise();
+}
+
+function start(){
+  startAtSection(0);
 }
 
 function setupDiagramScroll(){
@@ -1562,11 +1585,13 @@ function renderCheckpoint(){
     var allCorrect = 0, allTotal = 0;
     rowsHtml = '<div class="cat-list">' + SECTIONS.map(function(s,i){
       var d = sectionScore(i);
-      allCorrect += d.correct; allTotal += d.total;
-      var p = d.total ? Math.round(d.correct/d.total*100) : 0;
+      var done = sectionAttempted(i);
       var c = CATEGORIES[s.key].color;
+      if(done){ allCorrect += d.correct; allTotal += d.total; }
+      var p = (done && d.total) ? Math.round(d.correct/d.total*100) : 0;
+      var right = done ? (d.correct+' / '+d.total) : 'nicht bearbeitet';
       return '<div class="cat-row">'
-        + '<div class="cat-head"><span>'+s.title+'</span><span>'+d.correct+' / '+d.total+'</span></div>'
+        + '<div class="cat-head"><span>'+s.title+'</span><span>'+right+'</span></div>'
         + '<div class="cat-bar"><span style="width:'+p+'%;background:'+c+'"></span></div>'
         + '</div>';
     }).join('') + '</div>';
