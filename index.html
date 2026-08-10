@@ -77,7 +77,16 @@
   }
   button.secondary:active{transform:scale(0.98);}
 
-  .section-label{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;}
+  .section-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px;}
+  .section-label{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);min-width:0;}
+  .reset-link{
+    background:none;border:none;padding:2px 0;flex:none;cursor:pointer;
+    font-family:var(--font-mono);font-size:11px;letter-spacing:.03em;
+    color:var(--ink-soft);text-decoration:underline;text-underline-offset:2px;
+  }
+  .resume-hint{
+    margin:0 0 4px;font-size:13px;color:var(--ink-soft);line-height:1.5;
+  }
 
   /* Exercise topbar */
   .topbar{margin-bottom:2px;}
@@ -1246,6 +1255,65 @@ var SECTIONS = [
 var root = document.getElementById('app');
 var state = { sectionIdx:0, posIdx:0, answers:[], shuffles:[], advancing:false };
 
+/* ---------- progress persistence (survives a page reload) ----------
+   Everything is wrapped in try/catch: where storage is blocked the app
+   simply behaves as before instead of breaking. */
+var STORE_KEY = 'bpmn-trainer-progress';
+var STORE_MAX_AGE = 1000*60*60*24; /* 24 h */
+
+function storeSignature(){
+  return EXERCISES.length + '|' + SECTIONS.map(function(s){
+    return s.key + ':' + s.exercises.length;
+  }).join(',');
+}
+function saveProgress(view){
+  try{
+    if(!window.localStorage) return;
+    window.localStorage.setItem(STORE_KEY, JSON.stringify({
+      v: storeSignature(),
+      t: Date.now(),
+      view: view,
+      sectionIdx: state.sectionIdx,
+      posIdx: state.posIdx,
+      answers: state.answers,
+      shuffles: state.shuffles
+    }));
+  }catch(err){ /* storage full or unavailable - keep going */ }
+}
+function clearProgress(){
+  try{ if(window.localStorage) window.localStorage.removeItem(STORE_KEY); }catch(err){}
+}
+function loadProgress(){
+  try{
+    if(!window.localStorage) return null;
+    var raw = window.localStorage.getItem(STORE_KEY);
+    if(!raw) return null;
+    var d = JSON.parse(raw);
+    if(!d || d.v !== storeSignature()) return null;
+    if(typeof d.t !== 'number' || (Date.now() - d.t) > STORE_MAX_AGE) return null;
+    if(typeof d.sectionIdx !== 'number' || d.sectionIdx < 0 || d.sectionIdx >= SECTIONS.length) return null;
+    if(!Array.isArray(d.answers) || !Array.isArray(d.shuffles)) return null;
+    for(var i=0;i<SECTIONS.length;i++){
+      var len = SECTIONS[i].exercises.length;
+      if(!Array.isArray(d.answers[i]) || d.answers[i].length !== len) return null;
+      if(!Array.isArray(d.shuffles[i]) || d.shuffles[i].length !== len) return null;
+      for(var j=0;j<len;j++){
+        var sh = d.shuffles[i][j];
+        if(!Array.isArray(sh) || sh.length !== SECTIONS[i].exercises[j].options.length) return null;
+      }
+    }
+    if(typeof d.posIdx !== 'number' || d.posIdx < 0 || d.posIdx >= SECTIONS[d.sectionIdx].exercises.length) return null;
+    return d;
+  }catch(err){ return null; }
+}
+function resetTraining(){
+  var ok = true;
+  try{ ok = window.confirm('Fortschritt löschen und wieder von vorn beginnen?'); }catch(err){}
+  if(!ok) return;
+  clearProgress();
+  renderIntro();
+}
+
 function reduceMotion(){
   return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
@@ -1300,6 +1368,7 @@ function renderIntro(){
     + '</div>'
     + '<div class="cta"><button class="primary" id="startBtn">Training starten</button></div>'
     + '</div>';
+  clearProgress();
   document.getElementById('startBtn').addEventListener('click', start);
 }
 
@@ -1376,7 +1445,10 @@ function renderExercise(){
   root.innerHTML =
     '<div class="screen exercise">'
     + '<header class="topbar">'
-    + '<div class="section-label">Abschnitt '+(state.sectionIdx+1)+' von '+SECTIONS.length+' · '+section.title+'</div>'
+    + '<div class="section-row">'
+    + '<span class="section-label">Abschnitt '+(state.sectionIdx+1)+' von '+SECTIONS.length+' · '+section.title+'</span>'
+    + '<button type="button" class="reset-link" id="resetBtn">Neu starten</button>'
+    + '</div>'
     + '<div class="progress-track" style="--c-active:'+cat.color+'">'
     + '<div class="track-line"></div>'+progressHtml
     + '</div>'
@@ -1398,12 +1470,15 @@ function renderExercise(){
     + '</div>';
 
   setupDiagramScroll();
+  saveProgress('exercise');
 
   Array.prototype.slice.call(document.querySelectorAll('.node.done')).forEach(function(nd){
     nd.addEventListener('click', function(){ goToExercise(parseInt(nd.dataset.jump,10)); });
   });
   var backBtn = document.getElementById('backBtn');
   if(backBtn) backBtn.addEventListener('click', function(){ goToExercise(state.posIdx-1); });
+  var resetBtn = document.getElementById('resetBtn');
+  if(resetBtn) resetBtn.addEventListener('click', resetTraining);
 
   if(isAnswered){
     document.getElementById('nextBtn').addEventListener('click', nextExercise);
@@ -1431,6 +1506,7 @@ function selectOption(origIdx, ex, btns){
   fb.hidden = false;
   fb.classList.add(correct?'correct':'incorrect');
   fb.innerHTML = feedbackMarkup(ex, correct, nextLabel);
+  saveProgress('exercise');
   document.getElementById('nextBtn').addEventListener('click', nextExercise);
   requestAnimationFrame(function(){
     fb.scrollIntoView({behavior: reduceMotion()?'auto':'smooth', block:'end'});
@@ -1515,13 +1591,28 @@ function renderCheckpoint(){
     + '</div>'
     + '</div>';
 
+  saveProgress('checkpoint');
+
   document.getElementById('secondaryBtn').addEventListener('click', function(){ retrySection(secIdx); });
   document.getElementById('primaryBtn').addEventListener('click', function(){
     if(isFinal) start(); else goToNextSection();
   });
 }
 
-renderIntro();
+/* ---------- boot: resume where the participant left off ---------- */
+function boot(){
+  var saved = loadProgress();
+  if(!saved){ renderIntro(); return; }
+  state.sectionIdx = saved.sectionIdx;
+  state.posIdx     = saved.posIdx;
+  state.answers    = saved.answers;
+  state.shuffles   = saved.shuffles;
+  state.advancing  = false;
+  if(saved.view === 'checkpoint') renderCheckpoint();
+  else renderExercise();
+}
+
+boot();
 </script>
 </body>
 </html>
