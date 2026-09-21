@@ -25,7 +25,10 @@
     --c2:#0E7C86; --c2-tint:#DCF0F1;
     --c3:#6A3FB5; --c3-tint:#EDE4F7;
     --c4:#B5541F; --c4-tint:#F7E9DE;
-    --c5:#1B1F27; --c5-tint:#E4E6EC;
+    --c5:#8A1C4E; --c5-tint:#F7E1EB;
+    --c6:#1B1F27; --c6-tint:#E4E6EC;
+    --c7:#2F6B2A; --c7-tint:#E3F0E1;
+    --c8:#7A5A12; --c8-tint:#F5EDD9;
     --good:#1E8E5A; --good-tint:#E1F3E9;
     --bad:#C43D30; --bad-tint:#FAE4E1;
     --font-display:'Space Grotesk',ui-sans-serif,sans-serif;
@@ -142,6 +145,13 @@
   .diagram-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;display:flex;justify-content:flex-start;padding:6px 0;}
   .bpmn-diagram{height:clamp(150px,30vh,215px);width:auto;display:block;flex-shrink:0;margin:0 auto;}
   .bpmn-diagram .diagram-bg{fill:var(--paper);}
+  /* GBTEC Process Design convention: start green, intermediate orange, end black */
+  .bpmn-diagram .ev-start .shape,.bpmn-diagram .ev-start .symbol,
+  .bpmn-diagram .ev-start .mark-hollow,.bpmn-diagram .ev-start .mark-line{stroke:#1D7A2E;}
+  .bpmn-diagram .ev-start .mark-solid{fill:#1D7A2E;stroke:#1D7A2E;}
+  .bpmn-diagram .ev-inter .shape,.bpmn-diagram .ev-inter .symbol,
+  .bpmn-diagram .ev-inter .mark-hollow,.bpmn-diagram .ev-inter .mark-line{stroke:#D9702F;}
+  .bpmn-diagram .ev-inter .mark-solid{fill:#D9702F;stroke:#D9702F;}
   .bpmn-diagram .dtext{font-family:var(--font-body);font-size:15px;font-weight:500;fill:var(--ink);}
   .bpmn-diagram .ftext{font-family:var(--font-mono);font-size:12px;font-weight:500;fill:var(--ink-soft);}
   .bpmn-diagram .shape{fill:var(--paper);stroke:var(--ink);}
@@ -149,7 +159,7 @@
   .bpmn-diagram .symbol{stroke:var(--ink);fill:none;}
   .bpmn-diagram .flow{stroke:var(--ink);fill:none;}
   .bpmn-diagram .flow-dot{fill:var(--paper);stroke:var(--ink);}
-  .bpmn-diagram .lane-tab{fill:var(--diagram-tint);stroke:var(--ink);}
+  .bpmn-diagram .lane-tab{fill:#D6EEF9;stroke:var(--ink);}
   .bpmn-diagram .label-bg{fill:var(--paper);}
   .bpmn-diagram .arrow-fill{fill:var(--ink);}
   .bpmn-diagram .arrow-stroke{stroke:var(--ink);fill:none;}
@@ -157,6 +167,12 @@
   .bpmn-diagram .mark-solid{fill:var(--ink);stroke:var(--ink);stroke-width:1.8;}
   .bpmn-diagram .mark-line{fill:none;stroke:var(--ink);stroke-width:1.6;}
   .bpmn-diagram .mark-line-inv{fill:none;stroke:var(--paper);stroke-width:1.6;}
+  .bpmn-diagram .mark-fill{fill:var(--ink);stroke:none;}
+  .bpmn-diagram .mark-hole{fill:var(--paper);stroke:none;}
+  /* task-type icons in the grey used by GBTEC Process Design */
+  .bpmn-diagram .tmark .mark-fill,.bpmn-diagram .tmark .mark-solid{fill:#6E6E6E;stroke:#6E6E6E;}
+  .bpmn-diagram .tmark .mark-hollow,.bpmn-diagram .tmark .mark-line{stroke:#6E6E6E;}
+  .bpmn-diagram .tmark .mark-fill{stroke:none;}
 
   .scroll-hint{
     position:absolute;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;
@@ -209,7 +225,7 @@
 <div id="app"></div>
 <script>
 /* ============================================================
-   LOW-LEVEL DRAWING HELPERS
+   DRAWING HELPERS
    ============================================================ */
 function n(v){ return Math.round(v*100)/100; }
 
@@ -225,146 +241,244 @@ function svgWrap(vb, inner){
 
 /* ---------- event type markers ---------- */
 function mkMessage(x,y,m,filled){
-  var w=m*0.98, h=m*0.70;
-  var x0=n(x-w/2), y0=n(y-h/2);
-  var body='<rect x="'+x0+'" y="'+y0+'" width="'+n(w)+'" height="'+n(h)+'" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
-  var flap='<path d="M'+x0+','+y0+' L'+n(x)+','+n(y0+h*0.60)+' L'+n(x0+w)+','+y0+'" class="'+(filled?'mark-line-inv':'mark-line')+'"/>';
-  return body+flap;
+  var w=m*0.98, h=m*0.70, x0=n(x-w/2), y0=n(y-h/2);
+  return '<rect x="'+x0+'" y="'+y0+'" width="'+n(w)+'" height="'+n(h)+'" class="'+(filled?'mark-solid':'mark-hollow')+'"/>'
+    + '<path d="M'+x0+','+y0+' L'+n(x)+','+n(y0+h*0.60)+' L'+n(x0+w)+','+y0+'" class="'+(filled?'mark-line-inv':'mark-line')+'"/>';
 }
 function mkTimer(x,y,m){
   var r=m*0.48;
-  var s='<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r)+'" class="mark-hollow"/>';
-  s+='<path d="M'+n(x)+','+n(y-r*0.60)+' L'+n(x)+','+n(y)+' L'+n(x+r*0.48)+','+n(y+r*0.30)+'" class="mark-line"/>';
-  s+='<path d="M'+n(x)+','+n(y-r)+' L'+n(x)+','+n(y-r*0.72)
-     +' M'+n(x+r)+','+n(y)+' L'+n(x+r*0.72)+','+n(y)
-     +' M'+n(x)+','+n(y+r)+' L'+n(x)+','+n(y+r*0.72)
-     +' M'+n(x-r)+','+n(y)+' L'+n(x-r*0.72)+','+n(y)+'" class="mark-line"/>';
-  return s;
+  return '<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r)+'" class="mark-hollow"/>'
+    + '<path d="M'+n(x)+','+n(y-r*0.60)+' L'+n(x)+','+n(y)+' L'+n(x+r*0.48)+','+n(y+r*0.30)+'" class="mark-line"/>'
+    + '<path d="M'+n(x)+','+n(y-r)+' L'+n(x)+','+n(y-r*0.72)
+    + ' M'+n(x+r)+','+n(y)+' L'+n(x+r*0.72)+','+n(y)
+    + ' M'+n(x)+','+n(y+r)+' L'+n(x)+','+n(y+r*0.72)
+    + ' M'+n(x-r)+','+n(y)+' L'+n(x-r*0.72)+','+n(y)+'" class="mark-line"/>';
 }
 function mkError(x,y,m,filled){
   var pts=[[0.10,0.90],[0.38,0.32],[0.62,0.56],[0.90,0.08],[0.62,0.68],[0.38,0.44]];
-  var p=pts.map(function(v){ return n(x+(v[0]-0.5)*m)+','+n(y+(v[1]-0.5)*m); }).join(' ');
-  return '<polygon points="'+p+'" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
+  return '<polygon points="'+pts.map(function(v){return n(x+(v[0]-0.5)*m)+','+n(y+(v[1]-0.5)*m);}).join(' ')
+    + '" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
 }
 function mkSignal(x,y,m,filled){
   var s=m*0.55;
-  var p=[[n(x),n(y-s)],[n(x+s*0.92),n(y+s*0.58)],[n(x-s*0.92),n(y+s*0.58)]]
-        .map(function(v){return v[0]+','+v[1];}).join(' ');
-  return '<polygon points="'+p+'" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
+  return '<polygon points="'+[[n(x),n(y-s)],[n(x+s*0.92),n(y+s*0.58)],[n(x-s*0.92),n(y+s*0.58)]]
+    .map(function(v){return v[0]+','+v[1];}).join(' ')+'" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
 }
 function mkTerminate(x,y,m){
   return '<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(m*0.46)+'" class="mark-solid"/>';
 }
 function mkEscalation(x,y,m,filled){
-  var pts=[[0.5,0.04],[0.96,0.96],[0.5,0.54],[0.04,0.96]];
-  var p=pts.map(function(v){ return n(x+(v[0]-0.5)*m)+','+n(y+(v[1]-0.5)*m); }).join(' ');
-  return '<polygon points="'+p+'" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
+  var pts=[[0.5,0.04],[0.94,0.96],[0.5,0.52],[0.06,0.96]];
+  return '<polygon points="'+pts.map(function(v){return n(x+(v[0]-0.5)*m)+','+n(y+(v[1]-0.5)*m);}).join(' ')
+    + '" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
+}
+function mkCondition(x,y,m){
+  var w=m*0.76, h=m*0.94, x0=n(x-w/2), y0=n(y-h/2);
+  var s='<rect x="'+x0+'" y="'+y0+'" width="'+n(w)+'" height="'+n(h)+'" class="mark-hollow"/>';
+  for(var i=1;i<=3;i++){
+    var ly=n(y0+h*i/4);
+    s+='<path d="M'+n(x0+w*0.16)+','+ly+' H'+n(x0+w*0.84)+'" class="mark-line" stroke-width="1.3"/>';
+  }
+  return s;
+}
+function mkLink(x,y,m,filled){
+  var pts=[[-0.46,-0.16],[0.08,-0.16],[0.08,-0.40],[0.48,0],[0.08,0.40],[0.08,0.16],[-0.46,0.16]];
+  return '<polygon points="'+pts.map(function(v){return n(x+v[0]*m)+','+n(y+v[1]*m);}).join(' ')
+    + '" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
+}
+function mkCancel(x,y,m,filled){
+  var a=m*0.46, t=m*0.16, pts=[];
+  var raw=[[-1,-1],[0,0],[1,-1],[1,-1],[0,0],[1,1],[1,1],[0,0],[-1,1],[-1,1],[0,0],[-1,-1]];
+  function rot(px,py){ var c=Math.SQRT1_2; return [ (px-py)*c, (px+py)*c ]; }
+  var base=[[-t,-a],[t,-a],[t,-t],[a,-t],[a,t],[t,t],[t,a],[-t,a],[-t,t],[-a,t],[-a,-t],[-t,-t]];
+  base.forEach(function(p){ var r=rot(p[0],p[1]); pts.push(n(x+r[0])+','+n(y+r[1])); });
+  return '<polygon points="'+pts.join(' ')+'" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
+}
+function mkCompensation(x,y,m,filled){
+  var w=m*0.40, h=m*0.62, cls=filled?'mark-solid':'mark-hollow';
+  function tri(ox){
+    return '<polygon points="'+[[n(x+ox),n(y-h/2)],[n(x+ox),n(y+h/2)],[n(x+ox-w),n(y)]]
+      .map(function(v){return v[0]+','+v[1];}).join(' ')+'" class="'+cls+'"/>';
+  }
+  return tri(0)+tri(w);
+}
+function mkMultiple(x,y,m,filled){
+  var p=m*0.50, verts=[[0,-1],[0.951,-0.309],[0.588,0.809],[-0.588,0.809],[-0.951,-0.309]];
+  return '<polygon points="'+verts.map(function(v){return n(x+v[0]*p)+','+n(y+v[1]*p);}).join(' ')
+    + '" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
+}
+function mkParallelMultiple(x,y,m,filled){
+  var a=m*0.46, t=m*0.16;
+  var pts=[[-t,-a],[t,-a],[t,-t],[a,-t],[a,t],[t,t],[t,a],[-t,a],[-t,t],[-a,t],[-a,-t],[-t,-t]];
+  return '<polygon points="'+pts.map(function(v){return n(x+v[0])+','+n(y+v[1]);}).join(' ')
+    + '" class="'+(filled?'mark-solid':'mark-hollow')+'"/>';
 }
 function eventMarker(x,y,r,type,filled){
   if(!type || type==='none') return '';
-  var m = r*0.95;
-  if(type==='message')   return mkMessage(x,y,m,filled);
-  if(type==='timer')     return mkTimer(x,y,m);
-  if(type==='error')     return mkError(x,y,m,filled);
-  if(type==='signal')    return mkSignal(x,y,m,filled);
-  if(type==='terminate') return mkTerminate(x,y,m);
-  if(type==='escalation')return mkEscalation(x,y,m,filled);
+  var m=r*0.95;
+  if(type==='message')    return mkMessage(x,y,m,filled);
+  if(type==='timer')      return mkTimer(x,y,m);
+  if(type==='error')      return mkError(x,y,m,filled);
+  if(type==='signal')     return mkSignal(x,y,m,filled);
+  if(type==='terminate')  return mkTerminate(x,y,m);
+  if(type==='escalation') return mkEscalation(x,y,m,filled);
+  if(type==='condition')  return mkCondition(x,y,m);
+  if(type==='link')       return mkLink(x,y,m,filled);
+  if(type==='cancel')     return mkCancel(x,y,m,filled);
+  if(type==='compensation') return mkCompensation(x,y,m,filled);
+  if(type==='multiple')   return mkMultiple(x,y,m,filled);
+  if(type==='pmultiple')  return mkParallelMultiple(x,y,m,filled);
   return '';
 }
 
 /* ---------- events ----------
-   o = {pos:'start'|'inter'|'end', type:..., filled:bool, r:num, accent:'good', nonInt:bool} */
+   o = {pos:'start'|'inter'|'end', type, filled, r, accent:'good', nonInt} */
 function ev(x,y,o){
-  o = o || {};
-  var pos = o.pos || 'start';
-  var r = o.r || 18;
-  var cls = (o.accent==='good') ? 'shape shape-start-accent' : 'shape';
-  var dash = o.nonInt ? ' stroke-dasharray="5,4"' : '';
+  o=o||{};
+  var pos=o.pos||'start', r=o.r||18;
+  var dash=o.nonInt?' stroke-dasharray="5,4"':'';
   var s='';
   if(pos==='end'){
-    s += '<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r)+'" class="'+cls+'" stroke-width="4"'+dash+'/>';
+    s+='<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r)+'" class="shape" stroke-width="4"'+dash+'/>';
   } else if(pos==='inter'){
-    s += '<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r)+'" class="'+cls+'" stroke-width="2"'+dash+'/>';
-    s += '<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r-5)+'" class="symbol" stroke-width="2"'+dash+'/>';
+    s+='<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r)+'" class="shape" stroke-width="2"'+dash+'/>';
+    s+='<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r-5)+'" class="symbol" stroke-width="2"'+dash+'/>';
   } else {
-    s += '<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r)+'" class="'+cls+'" stroke-width="2"'+dash+'/>';
+    s+='<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r)+'" class="shape" stroke-width="2.4"'+dash+'/>';
   }
-  s += eventMarker(x,y,r,o.type,o.filled);
-  return s;
+  /* GBTEC Process Design colours events by position: green / orange / black.
+     o.bw renders a neutral black-and-white event, as other tools do. */
+  var grp = o.bw ? 'ev-bw' : ('ev-'+pos);
+  return '<g class="'+grp+'">'+s+eventMarker(x,y,r,o.type,o.filled)+'</g>';
 }
 function evLabel(x,y,r,label){
   var lines=String(label).split('\n');
-  var lineH=15;
   return lines.map(function(l,i){
-    return '<text x="'+n(x)+'" y="'+n(y+r+18+i*lineH)+'" text-anchor="middle" class="ftext">'+l+'</text>';
+    return '<text x="'+n(x)+'" y="'+n(y+r+18+i*15)+'" text-anchor="middle" class="ftext">'+l+'</text>';
   }).join('');
 }
 
-/* ---------- activity markers ---------- */
+/* ---------- activity type markers (top left) ---------- */
 function mkUser(x,y,s){
-  var cx=n(x+s/2);
-  return '<circle cx="'+cx+'" cy="'+n(y+s*0.27)+'" r="'+n(s*0.21)+'" class="mark-hollow" stroke-width="1.4"/>'
-    + '<path d="M'+n(x+s*0.10)+','+n(y+s*0.96)+' Q'+cx+','+n(y+s*0.44)+' '+n(x+s*0.90)+','+n(y+s*0.96)+'" class="mark-line" stroke-width="1.4"/>';
+  var cx=x+s/2;
+  return '<circle cx="'+n(cx)+'" cy="'+n(y+s*0.30)+'" r="'+n(s*0.20)+'" class="mark-fill"/>'
+    + '<path d="M'+n(x+s*0.12)+','+n(y+s*0.92)+' Q'+n(x+s*0.12)+','+n(y+s*0.56)+' '+n(cx)+','+n(y+s*0.56)
+    + ' Q'+n(x+s*0.88)+','+n(y+s*0.56)+' '+n(x+s*0.88)+','+n(y+s*0.92)+' Z" class="mark-fill"/>';
 }
+
 function mkGear(x,y,s){
-  var cx=n(x+s/2), cy=n(y+s/2), r=s*0.30, ri=s*0.13, t=s*0.14;
-  var teeth='';
-  for(var i=0;i<8;i++){
-    var a=i*Math.PI/4;
-    teeth += '<path d="M'+n(cx+Math.cos(a)*r)+','+n(cy+Math.sin(a)*r)
-          +' L'+n(cx+Math.cos(a)*(r+t))+','+n(cy+Math.sin(a)*(r+t))+'" class="mark-line" stroke-width="1.5"/>';
+  var cx=x+s/2, cy=y+s/2, ro=s*0.48, ri=s*0.35, pts=[];
+  for(var j=0;j<32;j++){
+    var a=(j-0.5)*Math.PI/16, r=(j%4<2)?ro:ri;
+    pts.push(n(cx+Math.cos(a)*r)+','+n(cy+Math.sin(a)*r));
   }
-  return '<circle cx="'+cx+'" cy="'+cy+'" r="'+n(r)+'" class="mark-hollow" stroke-width="1.4"/>'
-    + teeth
-    + '<circle cx="'+cx+'" cy="'+cy+'" r="'+n(ri)+'" class="mark-hollow" stroke-width="1.2"/>';
+  return '<polygon points="'+pts.join(' ')+'" class="mark-fill"/>'
+    + '<circle cx="'+n(cx)+'" cy="'+n(cy)+'" r="'+n(s*0.14)+'" class="mark-hole"/>';
 }
+
 function mkHand(x,y,s){
-  return '<rect x="'+n(x+s*0.16)+'" y="'+n(y+s*0.42)+'" width="'+n(s*0.68)+'" height="'+n(s*0.44)+'" rx="'+n(s*0.12)+'" class="mark-hollow" stroke-width="1.4"/>'
-    + '<path d="M'+n(x+s*0.30)+','+n(y+s*0.42)+' V'+n(y+s*0.16)
-    +' M'+n(x+s*0.50)+','+n(y+s*0.42)+' V'+n(y+s*0.10)
-    +' M'+n(x+s*0.70)+','+n(y+s*0.42)+' V'+n(y+s*0.20)+'" class="mark-line" stroke-width="1.4"/>';
+  var out='<rect x="'+n(x+s*0.24)+'" y="'+n(y+s*0.46)+'" width="'+n(s*0.62)+'" height="'+n(s*0.50)+'" rx="'+n(s*0.16)+'" class="mark-fill"/>';
+  var fingers=[[0.26,0.14],[0.42,0.04],[0.58,0.08],[0.74,0.18]];
+  fingers.forEach(function(f){
+    out+='<rect x="'+n(x+s*f[0])+'" y="'+n(y+s*f[1])+'" width="'+n(s*0.13)+'" height="'+n(s*(0.62-f[1]))+'" rx="'+n(s*0.065)+'" class="mark-fill"/>';
+  });
+  out+='<rect x="'+n(x+s*0.04)+'" y="'+n(y+s*0.50)+'" width="'+n(s*0.13)+'" height="'+n(s*0.34)+'" rx="'+n(s*0.065)+'"'
+    + ' transform="rotate(-38 '+n(x+s*0.24)+' '+n(y+s*0.80)+')" class="mark-fill"/>';
+  return out;
 }
-function mkRule(x,y,s){
-  return '<rect x="'+n(x+s*0.10)+'" y="'+n(y+s*0.18)+'" width="'+n(s*0.80)+'" height="'+n(s*0.64)+'" class="mark-hollow" stroke-width="1.4"/>'
-    + '<path d="M'+n(x+s*0.10)+','+n(y+s*0.38)+' H'+n(x+s*0.90)
-    +' M'+n(x+s*0.10)+','+n(y+s*0.60)+' H'+n(x+s*0.90)
-    +' M'+n(x+s*0.38)+','+n(y+s*0.38)+' V'+n(y+s*0.82)+'" class="mark-line" stroke-width="1.3"/>';
+
+function mkRuleIcon(x,y,s){
+  return '<rect x="'+n(x+s*0.06)+'" y="'+n(y+s*0.16)+'" width="'+n(s*0.88)+'" height="'+n(s*0.68)+'" rx="'+n(s*0.06)+'" class="mark-hollow" stroke-width="1.5"/>'
+    + '<path d="M'+n(x+s*0.06)+','+n(y+s*0.40)+' H'+n(x+s*0.94)
+    + ' M'+n(x+s*0.64)+','+n(y+s*0.40)+' V'+n(y+s*0.84)+'" class="mark-line" stroke-width="1.5"/>';
 }
+
+function mkScript(x,y,s){
+  var out='<rect x="'+n(x+s*0.14)+'" y="'+n(y+s*0.06)+'" width="'+n(s*0.72)+'" height="'+n(s*0.88)+'" rx="'+n(s*0.08)+'" class="mark-fill"/>';
+  for(var i=0;i<3;i++){
+    var ly=y+s*(0.30+i*0.20);
+    out+='<path d="M'+n(x+s*0.28)+','+n(ly)+' H'+n(x+s*0.72)+'" class="mark-line-inv" stroke-width="1.6"/>';
+  }
+  return out;
+}
+
 function activityMarker(kind,x,y,s){
   if(kind==='user')    return mkUser(x,y,s);
   if(kind==='service') return mkGear(x,y,s);
   if(kind==='manual')  return mkHand(x,y,s);
-  if(kind==='rule')    return mkRule(x,y,s);
+  if(kind==='rule')    return mkRuleIcon(x,y,s);
+  if(kind==='script')  return mkScript(x,y,s);
+  if(kind==='send')    return mkMessage(x+s/2,y+s/2,s*0.92,true);
+  if(kind==='receive') return mkMessage(x+s/2,y+s/2,s*0.92,false);
+  return '';
+}
+
+/* ---------- activity bottom markers ---------- */
+function bottomMarker(kind,cx,cy,s){
+  if(kind==='sub'){
+    var h=s, mx=n(cx-h/2), my=n(cy-h/2);
+    return '<rect x="'+mx+'" y="'+my+'" width="'+n(h)+'" height="'+n(h)+'" class="mark-hollow" stroke-width="1.4"/>'
+      + '<path d="M'+n(cx-h*0.28)+','+n(cy)+' H'+n(cx+h*0.28)+' M'+n(cx)+','+n(cy-h*0.28)+' V'+n(cy+h*0.28)+'" class="mark-line" stroke-width="1.5"/>';
+  }
+  if(kind==='loop'){
+    var r=s*0.42;
+    return '<path d="M'+n(cx+r*0.75)+','+n(cy-r*0.45)+' A'+n(r)+','+n(r)+' 0 1 0 '+n(cx+r*0.92)+','+n(cy+r*0.38)+'" class="mark-line" stroke-width="1.6"/>'
+      + '<polygon points="'+[[n(cx+r*0.30),n(cy-r*0.55)],[n(cx+r*1.05),n(cy-r*0.72)],[n(cx+r*0.88),n(cy+r*0.02)]]
+        .map(function(v){return v[0]+','+v[1];}).join(' ')+'" class="mark-solid" stroke-width="0.8"/>';
+  }
+  if(kind==='mipar'){
+    var h2=s*0.86, out='';
+    for(var i=-1;i<=1;i++) out+='<path d="M'+n(cx+i*s*0.28)+','+n(cy-h2/2)+' V'+n(cy+h2/2)+'" class="mark-line" stroke-width="2.4"/>';
+    return out;
+  }
+  if(kind==='miseq'){
+    var w2=s*0.86, out2='';
+    for(var j=-1;j<=1;j++) out2+='<path d="M'+n(cx-w2/2)+','+n(cy+j*s*0.28)+' H'+n(cx+w2/2)+'" class="mark-line" stroke-width="2.4"/>';
+    return out2;
+  }
+  if(kind==='adhoc'){
+    var w3=s*0.90;
+    return '<path d="M'+n(cx-w3/2)+','+n(cy)+' q'+n(w3*0.25)+','+n(-s*0.42)+' '+n(w3*0.5)+',0'
+      + ' q'+n(w3*0.25)+','+n(s*0.42)+' '+n(w3*0.5)+',0" class="mark-line" stroke-width="2.2"/>';
+  }
+  if(kind==='comp') return mkCompensation(cx,cy,s*1.15,false);
   return '';
 }
 
 /* ---------- activities ----------
-   o = {marker:'user'|'service'|'manual'|'rule', sub:bool, call:bool} */
+   o = {marker, bottom:[...], border:'call'|'transaction'|'eventsub'} */
 function task(cx,cy,w,h,label,o){
-  o = o || {};
-  var x=n(cx-w/2), y=n(cy-h/2);
-  var sw = o.call ? 4 : 2;
-  var s = '<rect x="'+x+'" y="'+y+'" width="'+n(w)+'" height="'+n(h)+'" rx="10" class="shape" stroke-width="'+sw+'"/>';
-  var lines=String(label).split('\n');
-  var lineH=17;
-  var offset = o.sub ? -5 : 0;
-  var startY = cy - (lines.length-1)*lineH/2 + 5 + offset;
-  s += '<text text-anchor="middle" class="dtext">'
-     + lines.map(function(l,i){ return '<tspan x="'+n(cx)+'" y="'+n(startY+i*lineH)+'">'+l+'</tspan>'; }).join('')
-     + '</text>';
-  if(o.marker) s += activityMarker(o.marker, x+7, y+7, 17);
-  if(o.sub){
-    var ms=15, mx=n(cx-ms/2), my=n(y+h-ms-5);
-    s += '<rect x="'+mx+'" y="'+my+'" width="'+ms+'" height="'+ms+'" class="mark-hollow" stroke-width="1.4"/>'
-       + '<path d="M'+n(cx-ms*0.28)+','+n(my+ms/2)+' H'+n(cx+ms*0.28)
-       +' M'+n(cx)+','+n(my+ms*0.22)+' V'+n(my+ms*0.78)+'" class="mark-line" stroke-width="1.5"/>';
+  o=o||{};
+  var x=n(cx-w/2), y=n(cy-h/2), s='';
+  if(o.border==='transaction'){
+    s+='<rect x="'+x+'" y="'+y+'" width="'+n(w)+'" height="'+n(h)+'" rx="10" class="shape" stroke-width="2"/>'
+      +'<rect x="'+n(x+4)+'" y="'+n(y+4)+'" width="'+n(w-8)+'" height="'+n(h-8)+'" rx="7" class="symbol" stroke-width="1.8"/>';
+  } else if(o.border==='eventsub'){
+    s+='<rect x="'+x+'" y="'+y+'" width="'+n(w)+'" height="'+n(h)+'" rx="10" class="shape" stroke-width="2" stroke-dasharray="2,3"/>';
+  } else {
+    s+='<rect x="'+x+'" y="'+y+'" width="'+n(w)+'" height="'+n(h)+'" rx="10" class="shape" stroke-width="'+(o.border==='call'?5:2)+'"/>';
+  }
+  var bottom = o.bottom || (o.sub ? ['sub'] : []);
+  var lines=String(label).split('\n'), lineH=17;
+  var offset = (bottom.length ? -6 : 0) + (o.marker ? 5 : 0);
+  var startY = cy-(lines.length-1)*lineH/2+5+offset;
+  s+='<text text-anchor="middle" class="dtext">'
+    + lines.map(function(l,i){ return '<tspan x="'+n(cx)+'" y="'+n(startY+i*lineH)+'">'+l+'</tspan>'; }).join('')
+    + '</text>';
+  if(o.marker) s+='<g class="tmark">'+activityMarker(o.marker, x+7, y+7, 17)+'</g>';
+  if(bottom.length){
+    var ms=15, gap=6, totalW=bottom.length*ms+(bottom.length-1)*gap;
+    bottom.forEach(function(b,i){
+      var bx = cx-totalW/2+ms/2+i*(ms+gap);
+      s+=bottomMarker(b, bx, y+h-ms/2-5, ms);
+    });
   }
   return s;
 }
 
 /* ---------- gateways ---------- */
 function gw(cx,cy,kind,s){
-  s = s || 22;
+  s=s||22;
   var pts=n(cx)+','+n(cy-s)+' '+n(cx+s)+','+n(cy)+' '+n(cx)+','+n(cy+s)+' '+n(cx-s)+','+n(cy);
   var sym='';
   if(kind==='xor'){
@@ -375,104 +489,146 @@ function gw(cx,cy,kind,s){
     var a=s*0.45;
     sym='<path d="M'+n(cx-a)+','+n(cy)+' H'+n(cx+a)+' M'+n(cx)+','+n(cy-a)+' V'+n(cy+a)+'" class="symbol" stroke-width="2.4" stroke-linecap="round"/>';
   }
-  if(kind==='or'){
-    sym='<circle cx="'+n(cx)+'" cy="'+n(cy)+'" r="'+n(s*0.40)+'" class="symbol" stroke-width="2.4"/>';
-  }
+  if(kind==='or') sym='<circle cx="'+n(cx)+'" cy="'+n(cy)+'" r="'+n(s*0.40)+'" class="symbol" stroke-width="2.4"/>';
   if(kind==='complex'){
     var c=s*0.42;
     sym='<path d="M'+n(cx-c)+','+n(cy)+' H'+n(cx+c)+' M'+n(cx)+','+n(cy-c)+' V'+n(cy+c)
-       +' M'+n(cx-c*0.72)+','+n(cy-c*0.72)+' L'+n(cx+c*0.72)+','+n(cy+c*0.72)
-       +' M'+n(cx+c*0.72)+','+n(cy-c*0.72)+' L'+n(cx-c*0.72)+','+n(cy+c*0.72)+'" class="symbol" stroke-width="2" stroke-linecap="round"/>';
+      +' M'+n(cx-c*0.72)+','+n(cy-c*0.72)+' L'+n(cx+c*0.72)+','+n(cy+c*0.72)
+      +' M'+n(cx+c*0.72)+','+n(cy-c*0.72)+' L'+n(cx-c*0.72)+','+n(cy+c*0.72)+'" class="symbol" stroke-width="2" stroke-linecap="round"/>';
   }
-  if(kind==='eventgw'){
+  if(kind==='eventgw' || kind==='eventgwStart' || kind==='pEventgwStart'){
     var r1=s*0.62, r2=s*0.48, p=s*0.32;
     var verts=[[0,-1],[0.951,-0.309],[0.588,0.809],[-0.588,0.809],[-0.951,-0.309]];
-    var pent=verts.map(function(v){ return n(cx+v[0]*p)+','+n(cy+v[1]*p); }).join(' ');
-    sym='<circle cx="'+n(cx)+'" cy="'+n(cy)+'" r="'+n(r1)+'" class="symbol" stroke-width="1.8"/>'
-       +'<circle cx="'+n(cx)+'" cy="'+n(cy)+'" r="'+n(r2)+'" class="symbol" stroke-width="1.8"/>'
-       +'<polygon points="'+pent+'" class="symbol" stroke-width="1.8"/>';
+    var inner = (kind==='pEventgwStart')
+      ? '<path d="M'+n(cx-p)+','+n(cy)+' H'+n(cx+p)+' M'+n(cx)+','+n(cy-p)+' V'+n(cy+p)+'" class="symbol" stroke-width="2.2" stroke-linecap="round"/>'
+      : '<polygon points="'+verts.map(function(v){return n(cx+v[0]*p)+','+n(cy+v[1]*p);}).join(' ')+'" class="symbol" stroke-width="1.8"/>';
+    sym='<circle cx="'+n(cx)+'" cy="'+n(cy)+'" r="'+n(r1)+'" class="symbol" stroke-width="1.8"/>';
+    if(kind==='eventgw') sym+='<circle cx="'+n(cx)+'" cy="'+n(cy)+'" r="'+n(r2)+'" class="symbol" stroke-width="1.8"/>';
+    sym+=inner;
   }
   return '<polygon points="'+pts+'" class="shape" stroke-width="2"/>'+sym;
 }
 
 /* ---------- connections ----------
-   opts = {dashed, dotted, message, noArrow, isDefault} */
+   opts = {dashed, dotted, message, noArrow, isDefault, isConditional} */
 function poly(points, opts){
-  opts = opts || {};
-  var d = points.map(function(p,i){return (i===0?'M':'L')+n(p[0])+','+n(p[1]);}).join(' ');
-  var dash = '';
-  if(opts.dashed) dash = ' stroke-dasharray="6,5"';
-  if(opts.dotted) dash = ' stroke-dasharray="2,4"';
-  var marker = opts.noArrow ? '' : ' marker-end="'+(opts.message?'url(#arrowOpen)':'url(#arrow)')+'"';
-  var pre = opts.message ? '<circle cx="'+n(points[0][0])+'" cy="'+n(points[0][1])+'" r="4" class="flow-dot" stroke-width="1.4"/>' : '';
-  var s = pre + '<path d="'+d+'" class="flow" stroke-width="2"'+dash+marker+'/>';
+  opts=opts||{};
+  var d=points.map(function(p,i){return (i===0?'M':'L')+n(p[0])+','+n(p[1]);}).join(' ');
+  var dash='';
+  if(opts.dashed) dash=' stroke-dasharray="6,5"';
+  if(opts.dotted) dash=' stroke-dasharray="2,4"';
+  var marker=opts.noArrow?'':' marker-end="'+(opts.message?'url(#arrowOpen)':'url(#arrow)')+'"';
+  var pre=opts.message?'<circle cx="'+n(points[0][0])+'" cy="'+n(points[0][1])+'" r="4" class="flow-dot" stroke-width="1.4"/>':'';
+  var s=pre+'<path d="'+d+'" class="flow" stroke-width="2"'+dash+marker+'/>';
+  var x0=points[0][0], y0=points[0][1], x1=points[1][0], y1=points[1][1];
+  var dx=x1-x0, dy=y1-y0, len=Math.sqrt(dx*dx+dy*dy)||1, ux=dx/len, uy=dy/len;
   if(opts.isDefault){
-    var x0=points[0][0], y0=points[0][1], x1=points[1][0], y1=points[1][1];
-    var dx=x1-x0, dy=y1-y0, len=Math.sqrt(dx*dx+dy*dy) || 1;
-    var ux=dx/len, uy=dy/len;
     var px=x0+ux*16, py=y0+uy*16;
-    s += '<path d="M'+n(px-uy*7-ux*5)+','+n(py+ux*7-uy*5)+' L'+n(px+uy*7+ux*5)+','+n(py-ux*7+uy*5)+'" class="flow" stroke-width="2"/>';
+    s+='<path d="M'+n(px-uy*7-ux*5)+','+n(py+ux*7-uy*5)+' L'+n(px+uy*7+ux*5)+','+n(py-ux*7+uy*5)+'" class="flow" stroke-width="2"/>';
+  }
+  if(opts.isConditional){
+    var qx=x0+ux*11, qy=y0+uy*11, h=6;
+    var dpts=[[qx-ux*h,qy-uy*h],[qx-uy*h*0.75,qy+ux*h*0.75],[qx+ux*h,qy+uy*h],[qx+uy*h*0.75,qy-ux*h*0.75]];
+    s+='<polygon points="'+dpts.map(function(p){return n(p[0])+','+n(p[1]);}).join(' ')+'" class="flow-dot" stroke-width="1.6"/>';
   }
   return s;
 }
 function flowLabel(x,y,label){
-  var lines=String(label).split('\n');
-  var lineH=14;
-  var maxLen=0;
+  var lines=String(label).split('\n'), lineH=14, maxLen=0;
   lines.forEach(function(l){ if(l.length>maxLen) maxLen=l.length; });
-  var w = maxLen*7.3+12;
-  var h = lines.length*lineH+6;
-  var bg = '<rect x="'+n(x-w/2)+'" y="'+n(y-lineH*0.8-4)+'" width="'+n(w)+'" height="'+n(h)+'" rx="4" class="label-bg" fill-opacity="0.94"/>';
-  var text = lines.map(function(l,i){ return '<text x="'+n(x)+'" y="'+n(y+i*lineH)+'" text-anchor="middle" class="ftext">'+l+'</text>'; }).join('');
-  return bg+text;
+  var w=maxLen*7.3+12, h=lines.length*lineH+6;
+  return '<rect x="'+n(x-w/2)+'" y="'+n(y-lineH*0.8-4)+'" width="'+n(w)+'" height="'+n(h)+'" rx="4" class="label-bg" fill-opacity="0.94"/>'
+    + lines.map(function(l,i){ return '<text x="'+n(x)+'" y="'+n(y+i*lineH)+'" text-anchor="middle" class="ftext">'+l+'</text>'; }).join('');
+}
+
+/* question written at the diamond — house rule: the gateway asks, the paths answer */
+function gwQuestion(cx,cy,s,text){
+  var lines=String(text).split('\n');
+  return flowLabel(cx, cy-s-10-(lines.length-1)*14, text);
 }
 
 /* ---------- pools, lanes, artefacts ---------- */
 function pool(x,y,w,h,label,lanes){
   var colW=34;
-  var s = '<rect x="'+n(x)+'" y="'+n(y)+'" width="'+n(w)+'" height="'+n(h)+'" class="shape" stroke-width="2"/>'
-        + '<rect x="'+n(x)+'" y="'+n(y)+'" width="'+colW+'" height="'+n(h)+'" class="lane-tab" stroke-width="2"/>'
-        + '<text class="dtext" text-anchor="middle" transform="rotate(-90 '+n(x+colW/2)+' '+n(y+h/2)+')" x="'+n(x+colW/2)+'" y="'+n(y+h/2+5)+'">'+label+'</text>';
+  var s='<rect x="'+n(x)+'" y="'+n(y)+'" width="'+n(w)+'" height="'+n(h)+'" class="shape" stroke-width="2"/>'
+    + '<rect x="'+n(x)+'" y="'+n(y)+'" width="'+colW+'" height="'+n(h)+'" class="lane-tab" stroke-width="2"/>'
+    + '<text class="dtext" text-anchor="middle" transform="rotate(-90 '+n(x+colW/2)+' '+n(y+h/2)+')" x="'+n(x+colW/2)+'" y="'+n(y+h/2+5)+'">'+label+'</text>';
   if(lanes && lanes.length){
-    var laneH = h/lanes.length;
-    var laneCol = 30;
+    var laneH=h/lanes.length, laneCol=30;
     lanes.forEach(function(ln,i){
-      var ly = y + i*laneH;
-      if(i>0) s += '<path d="M'+n(x+colW)+','+n(ly)+' H'+n(x+w)+'" class="flow" stroke-width="2"/>';
-      s += '<rect x="'+n(x+colW)+'" y="'+n(ly)+'" width="'+laneCol+'" height="'+n(laneH)+'" class="lane-tab" stroke-width="2"/>'
-        + '<text class="ftext" text-anchor="middle" transform="rotate(-90 '+n(x+colW+laneCol/2)+' '+n(ly+laneH/2)+')" x="'+n(x+colW+laneCol/2)+'" y="'+n(ly+laneH/2+4)+'">'+ln+'</text>';
+      var ly=y+i*laneH;
+      if(i>0) s+='<path d="M'+n(x+colW)+','+n(ly)+' H'+n(x+w)+'" class="flow" stroke-width="2"/>';
+      var lcx=x+colW+laneCol/2, lcy=ly+laneH/2, parts=String(ln).split('\n');
+      s+='<rect x="'+n(x+colW)+'" y="'+n(ly)+'" width="'+laneCol+'" height="'+n(laneH)+'" class="lane-tab" stroke-width="2"/>'
+        + '<text class="ftext" text-anchor="middle" transform="rotate(-90 '+n(lcx)+' '+n(lcy)+')">'
+        + parts.map(function(t,k){ return '<tspan x="'+n(lcx)+'" y="'+n(lcy+4+(k-(parts.length-1)/2)*13)+'">'+t+'</tspan>'; }).join('')
+        + '</text>';
     });
   }
   return s;
 }
-function dataObject(cx,cy,label){
-  var w=40,h=52,c=12;
-  var x=n(cx-w/2), y=n(cy-h/2);
+function dataObject(cx,cy,label,variant){
+  var w=40,h=52,c=12, x=n(cx-w/2), y=n(cy-h/2);
   var s='<path d="M'+x+','+y+' L'+n(x+w-c)+','+y+' L'+n(x+w)+','+n(y+c)+' L'+n(x+w)+','+n(y+h)+' L'+x+','+n(y+h)+' Z" class="shape" stroke-width="2"/>'
     + '<path d="M'+n(x+w-c)+','+y+' L'+n(x+w-c)+','+n(y+c)+' L'+n(x+w)+','+n(y+c)+'" class="symbol" stroke-width="1.6"/>';
-  if(label) s += '<text x="'+n(cx)+'" y="'+n(y+h+18)+'" text-anchor="middle" class="ftext">'+label+'</text>';
+  if(variant==='collection'){
+    for(var i=-1;i<=1;i++) s+='<path d="M'+n(cx+i*5)+','+n(y+h-13)+' V'+n(y+h-4)+'" class="symbol" stroke-width="2.2"/>';
+  }
+  if(variant==='input' || variant==='output'){
+    var ax=n(x+6), ay=n(y+13), aw=13;
+    s+='<polygon points="'+[[ax,ay-3],[ax+aw*0.55,ay-3],[ax+aw*0.55,ay-6],[ax+aw,ay],[ax+aw*0.55,ay+6],[ax+aw*0.55,ay+3],[ax,ay+3]]
+      .map(function(p){return n(p[0])+','+n(p[1]);}).join(' ')+'" class="'+(variant==='output'?'mark-solid':'mark-hollow')+'" stroke-width="1.4"/>';
+  }
+  if(label) s+='<text x="'+n(cx)+'" y="'+n(y+h+18)+'" text-anchor="middle" class="ftext">'+label+'</text>';
+  return s;
+}
+function dataStore(cx,cy,label){
+  var w=46,h=44,ry=8, x=n(cx-w/2), y=n(cy-h/2);
+  var s='<path d="M'+x+','+n(y+ry)+' V'+n(y+h-ry)
+    + ' a'+n(w/2)+','+ry+' 0 0 0 '+n(w)+',0'
+    + ' V'+n(y+ry)+'" class="shape" stroke-width="2"/>'
+    + '<ellipse cx="'+n(cx)+'" cy="'+n(y+ry)+'" rx="'+n(w/2)+'" ry="'+ry+'" class="shape" stroke-width="2"/>'
+    + '<path d="M'+x+','+n(y+ry*2.4)+' a'+n(w/2)+','+ry+' 0 0 0 '+n(w)+',0" class="symbol" stroke-width="1.5"/>';
+  if(label) s+='<text x="'+n(cx)+'" y="'+n(y+h+18)+'" text-anchor="middle" class="ftext">'+label+'</text>';
+  return s;
+}
+function groupBox(x,y,w,h,label){
+  var s='<rect x="'+n(x)+'" y="'+n(y)+'" width="'+n(w)+'" height="'+n(h)+'" rx="12" class="symbol" stroke-width="2" stroke-dasharray="10,5,3,5"/>';
+  if(label) s+='<text x="'+n(x+10)+'" y="'+n(y-8)+'" class="ftext" text-anchor="start">'+label+'</text>';
   return s;
 }
 function annotation(x,y,h,label){
   var s='<path d="M'+n(x+10)+','+n(y)+' L'+n(x)+','+n(y)+' L'+n(x)+','+n(y+h)+' L'+n(x+10)+','+n(y+h)+'" class="flow" stroke-width="1.8"/>';
   var lines=String(label).split('\n');
-  s += lines.map(function(l,i){ return '<text x="'+n(x+16)+'" y="'+n(y+h/2+5+(i-(lines.length-1)/2)*15)+'" class="ftext" text-anchor="start">'+l+'</text>'; }).join('');
-  return s;
+  return s+lines.map(function(l,i){
+    return '<text x="'+n(x+16)+'" y="'+n(y+h/2+5+(i-(lines.length-1)/2)*15)+'" class="ftext" text-anchor="start">'+l+'</text>';
+  }).join('');
 }
 function boundaryEvent(taskCx, taskCy, taskW, taskH, type, nonInt){
-  var x = taskCx + taskW/2 - 30;
-  var y = taskCy + taskH/2;
-  return ev(x, y, {pos:'inter', type:type, r:15, nonInt:nonInt});
+  return ev(taskCx+taskW/2-30, taskCy+taskH/2, {pos:'inter', type:type, r:15, nonInt:nonInt});
 }
 
 /* ============================================================
    DIAGRAM TEMPLATES
    ============================================================ */
 
-/* single symbol, centered */
-function tplSingle(inner, vb){
-  return svgWrap(vb || [300,200], inner);
+/* one symbol, centred */
+function tplSingle(inner, vb){ return svgWrap(vb||[300,200], inner); }
+
+/* four labelled symbols side by side — A B C D */
+function tplChoice4(drawers){
+  var gap=165, x0=95, H=215, s='';
+  drawers.forEach(function(d,i){
+    var cx=x0+i*gap;
+    s+=d(cx,88);
+    s+='<text x="'+n(cx)+'" y="'+(H-28)+'" text-anchor="middle" class="dtext">'+String.fromCharCode(65+i)+'</text>';
+  });
+  return svgWrap([x0*2+gap*(drawers.length-1), H], s);
 }
+function dEv(o){ return function(cx,cy){ return ev(cx,cy,o); }; }
+function dGw(kind){ return function(cx,cy){ return gw(cx,cy,kind,30); }; }
+function dTask(label,o){ return function(cx,cy){ return task(cx,cy,140,80,label,o); }; }
+function dData(variant){ return function(cx,cy){ return dataObject(cx,cy,null,variant); }; }
 
 /* start -> A -> B -> end */
 function tplLinear(labelA, labelB, oA, oB){
@@ -487,20 +643,21 @@ function tplLinear(labelA, labelB, oA, oB){
   return svgWrap([640,200], s);
 }
 
-/* generic split/join with two branches
-   o = {split, join, first, up, down, condUp, condDown, upO, downO} */
+/* generic split/join, two branches
+   o = {split, join, first, up, down, condUp, condDown, after, upO, downO} */
 function tplSplitJoin(o){
   var s='', lbl='';
   s+=ev(50,140,{pos:'start'});
   s+=task(190,140,160,66,o.first);
   s+=gw(350,140,o.split);
+  if(o.q) lbl+=gwQuestion(350,140,22,o.q);
   s+=poly([[68,140],[110,140]]);
   s+=poly([[270,140],[328,140]]);
-  s+=poly([[372,140],[400,140],[400,75],[520,75]]);
-  if(o.condUp) lbl+=flowLabel(450,50,o.condUp);
+  s+=poly([[372,140],[412,140],[412,75],[520,75]]);
+  if(o.condUp) lbl+=flowLabel(462,50,o.condUp);
   s+=task(620,75,200,58,o.up,o.upO);
-  s+=poly([[372,140],[400,140],[400,205],[520,205]]);
-  if(o.condDown) lbl+=flowLabel(450,222,o.condDown);
+  s+=poly([[372,140],[412,140],[412,205],[520,205]]);
+  if(o.condDown) lbl+=flowLabel(462,224,o.condDown);
   s+=task(620,205,200,58,o.down,o.downO);
   s+=poly([[720,75],[750,75],[750,140],[768,140]]);
   s+=poly([[720,205],[750,205],[750,140],[768,140]]);
@@ -517,47 +674,176 @@ function tplSplitJoin(o){
   return svgWrap([930,280], s+lbl);
 }
 
-/* XOR split into two branches, each with its own end event */
-function tplXorTwoEnds(first, up, down, condUp, condDown){
+function tplXorTwoEnds(o){
   var s='', lbl='';
   s+=ev(50,140,{pos:'start'});
-  s+=task(190,140,160,66,first);
+  s+=task(190,140,160,66,o.first);
+  s+=gw(350,140,'xor');
+  if(o.q) lbl+=gwQuestion(350,140,22,o.q);
+  s+=poly([[68,140],[110,140]]);
+  s+=poly([[270,140],[328,140]]);
+  s+=poly([[372,140],[412,140],[412,75],[520,75]]);
+  if(o.condUp) lbl+=flowLabel(462,50,o.condUp);
+  s+=task(620,75,200,58,o.up);
+  s+=poly([[720,75],[757,75]]);
+  s+=ev(775,75,{pos:'end'});
+  s+=poly([[372,140],[412,140],[412,205],[520,205]]);
+  if(o.condDown) lbl+=flowLabel(462,224,o.condDown);
+  s+=task(620,205,200,58,o.down);
+  s+=poly([[720,205],[757,205]]);
+  s+=ev(775,205,{pos:'end'});
+  return svgWrap([830,280], s+lbl);
+}
+
+/* ---------- Block 1: Grundsymbole ---------- */
+function svgReading(){
+  var s='';
+  s+=ev(55,100,{pos:'start',accent:'good'});
+  s+=task(200,100,150,64,'Antrag\nerfassen');
+  s+=task(390,100,150,64,'Antrag\nprüfen');
+  s+=task(580,100,150,64,'Bescheid\nversenden');
+  s+=ev(720,100,{pos:'end'});
+  s+=poly([[73,100],[118,100]]);
+  s+=poly([[275,100],[308,100]]);
+  s+=poly([[465,100],[498,100]]);
+  s+=poly([[655,100],[697,100]]);
+  return svgWrap([780,200], s);
+}
+function svgSeqFlowOnly(){
+  var s='';
+  s+=task(110,100,150,64,'Antrag\nprüfen');
+  s+=poly([[185,100],[315,100]]);
+  s+=task(390,100,150,64,'Bescheid\nerstellen');
+  return svgWrap([480,200], s);
+}
+function svgTokenSplit(){
+  var s='';
+  s+=ev(45,120,{pos:'start'});
+  s+=task(170,120,150,60,'Auftrag\nannehmen');
+  s+=gw(320,120,'and');
+  s+=poly([[63,120],[92,120]]);
+  s+=poly([[245,120],[298,120]]);
+  s+=poly([[342,120],[370,120],[370,55],[455,55]]);
+  s+=task(550,55,190,54,'Ware\nkommissionieren');
+  s+=poly([[342,120],[370,120],[370,185],[455,185]]);
+  s+=task(550,185,190,54,'Rechnung\nerstellen');
+  return svgWrap([680,250], s);
+}
+function svgNoVerb(){ return tplLinear('Antrag','Bescheidversand'); }
+function svgOrphan(){
+  var s='';
+  s+=ev(50,90,{pos:'start'});
+  s+=task(215,90,170,64,'Antrag\nerfassen');
+  s+=poly([[68,90],[130,90]]);
+  s+=poly([[300,90],[352,90]]);
+  s+=ev(370,90,{pos:'end'});
+  s+=task(215,215,170,64,'Antrag\narchivieren');
+  return svgWrap([440,300], s);
+}
+function svgMissingEnd(){
+  var s='';
+  s+=ev(60,100,{pos:'start'});
+  s+=task(225,100,170,72,'Antrag\nprüfen');
+  s+=task(425,100,170,72,'Bescheid\nversenden');
+  s+=poly([[78,100],[140,100]]);
+  s+=poly([[310,100],[340,100]]);
+  s+=poly([[510,100],[600,100]]);
+  return svgWrap([640,200], s);
+}
+function svgAfterEnd(){
+  var s='';
+  s+=ev(50,100,{pos:'start'});
+  s+=task(220,100,170,72,'Bescheid\nversenden');
+  s+=ev(370,100,{pos:'end'});
+  s+=task(530,100,170,72,'Akte\nablegen');
+  s+=ev(660,100,{pos:'end'});
+  s+=poly([[68,100],[135,100]]);
+  s+=poly([[305,100],[352,100]]);
+  s+=poly([[388,100],[445,100]]);
+  s+=poly([[615,100],[642,100]]);
+  return svgWrap([720,200], s);
+}
+
+/* ---------- Block 1: Gateways ---------- */
+function svgGatewayRole(){
+  var s='', lbl='';
+  s+=ev(50,130,{pos:'start'});
+  s+=task(200,130,175,66,'Antrag\nprüfen');
+  s+=gw(370,130,'xor');
+  lbl+=gwQuestion(370,130,22,'Antrag\nbewilligungs-\nfähig?');
+  s+=poly([[68,130],[112,130]]);
+  s+=poly([[288,130],[348,130]]);
+  s+=poly([[392,130],[440,130],[440,65],[520,65]]);
+  lbl+=flowLabel(480,46,'ja');
+  s+=task(615,65,180,56,'Antrag\ngenehmigen');
+  s+=poly([[705,65],[742,65]]);
+  s+=ev(760,65,{pos:'end'});
+  s+=poly([[392,130],[440,130],[440,195],[520,195]]);
+  lbl+=flowLabel(480,218,'nein');
+  s+=task(615,195,180,56,'Antrag\nablehnen');
+  s+=poly([[705,195],[742,195]]);
+  s+=ev(760,195,{pos:'end'});
+  return svgWrap([815,270], s+lbl);
+}
+
+function svgXorGap(){
+  var s='', lbl='';
+  s+=ev(50,140,{pos:'start'});
+  s+=task(190,140,160,66,'Betrag\nprüfen');
   s+=gw(350,140,'xor');
   s+=poly([[68,140],[110,140]]);
   s+=poly([[270,140],[328,140]]);
-  s+=poly([[372,140],[400,140],[400,75],[500,75]]);
-  if(condUp) lbl+=flowLabel(450,50,condUp);
-  s+=task(600,75,200,58,up);
-  s+=poly([[700,75],[737,75]]);
-  s+=ev(755,75,{pos:'end'});
-  s+=poly([[372,140],[400,140],[400,205],[500,205]]);
-  if(condDown) lbl+=flowLabel(450,222,condDown);
-  s+=task(600,205,200,58,down);
-  s+=poly([[700,205],[737,205]]);
-  s+=ev(755,205,{pos:'end'});
-  return svgWrap([810,280], s+lbl);
+  s+=poly([[372,140],[400,140],[400,75],[520,75]]);
+  lbl+=flowLabel(450,50,'über 500 €');
+  s+=task(620,75,200,58,'Freigabe\neinholen');
+  s+=poly([[720,75],[757,75]]);
+  s+=ev(775,75,{pos:'end'});
+  s+=poly([[372,140],[400,140],[400,205],[520,205]]);
+  lbl+=flowLabel(450,222,'unter 500 €');
+  s+=task(620,205,200,58,'Direkt\nauszahlen');
+  s+=poly([[720,205],[757,205]]);
+  s+=ev(775,205,{pos:'end'});
+  return svgWrap([830,280], s+lbl);
+}
+function svgNoConditions(){
+  return tplXorTwoEnds({first:'Rechnung\nprüfen', up:'Rechnung\nfreigeben', down:'Rechnung\nzurückweisen'});
 }
 
-/* ---------- correction loop, cleanly closed by an XOR join ---------- */
+function svgImplicitSplit(){
+  var s='';
+  s+=ev(50,140,{pos:'start'});
+  s+=task(190,140,170,72,'Antrag\nprüfen');
+  s+=poly([[68,140],[105,140]]);
+  s+=poly([[275,140],[310,140],[310,80],[375,80]]);
+  s+=task(460,80,170,64,'Antrag\ngenehmigen');
+  s+=poly([[545,80],[582,80]]);
+  s+=ev(600,80,{pos:'end'});
+  s+=poly([[275,140],[310,140],[310,200],[375,200]]);
+  s+=task(460,200,170,64,'Antrag\nablehnen');
+  s+=poly([[545,200],[582,200]]);
+  s+=ev(600,200,{pos:'end'});
+  return svgWrap([660,280], s);
+}
 function svgLoopClean(){
   var s='', lbl='';
   s+=ev(50,120,{pos:'start'});
   s+=gw(130,120,'xor',20);
   s+=task(250,120,160,64,'Dokument\nerstellen');
-  s+=task(450,120,160,64,'Dokument\npruefen'.replace('pruefen','prüfen'));
+  s+=task(450,120,160,64,'Dokument\nprüfen');
   s+=gw(600,120,'xor',20);
   s+=poly([[68,120],[110,120]]);
   s+=poly([[150,120],[170,120]]);
   s+=poly([[330,120],[370,120]]);
   s+=poly([[530,120],[580,120]]);
+  lbl+=gwQuestion(600,120,20,'Dokument\nfreigegeben?');
   s+=poly([[620,120],[742,120]]);
-  lbl+=flowLabel(681,86,'Dokument\nfreigeben');
+  lbl+=flowLabel(681,100,'ja');
   s+=ev(760,120,{pos:'end'});
   s+=poly([[600,140],[600,235],[130,235],[130,140]]);
-  lbl+=flowLabel(365,258,'Dokument\nüberarbeiten');
-  return svgWrap([800,300], s+lbl);
+  lbl+=flowLabel(632,190,'nein');
+  return svgWrap([800,280], s+lbl);
 }
-/* same process, but the loop runs straight back into the activity (bad style) */
+
 function svgLoopDirect(){
   var s='', lbl='';
   s+=ev(50,120,{pos:'start'});
@@ -567,42 +853,29 @@ function svgLoopDirect(){
   s+=poly([[68,120],[150,120]]);
   s+=poly([[310,120],[370,120]]);
   s+=poly([[530,120],[580,120]]);
+  lbl+=gwQuestion(600,120,20,'Dokument\nfreigegeben?');
   s+=poly([[620,120],[742,120]]);
-  lbl+=flowLabel(681,86,'Dokument\nfreigeben');
+  lbl+=flowLabel(681,100,'ja');
   s+=ev(760,120,{pos:'end'});
   s+=poly([[600,140],[600,235],[230,235],[230,152]]);
-  lbl+=flowLabel(415,258,'Dokument\nüberarbeiten');
-  return svgWrap([800,300], s+lbl);
+  lbl+=flowLabel(632,190,'nein');
+  return svgWrap([800,280], s+lbl);
 }
 
-/* ---------- collaboration across two pools ---------- */
-function svgCollab(){
+/* ---------- Block 2: Pools und Lanes ---------- */
+function svgPool(){
   var s='';
-  s+=pool(20,20,760,130,'Kunde');
-  s+=pool(20,170,760,150,'Sachbearbeitung');
-  s+=ev(110,85,{pos:'start',r:16});
-  s+=task(240,85,140,52,'Anfrage\nsenden');
-  s+=poly([[126,85],[170,85]]);
-  s+=poly([[310,85],[584,85]]);
-  s+=ev(600,85,{pos:'inter',type:'message',r:16});
-  s+=poly([[616,85],[684,85]]);
-  s+=ev(700,85,{pos:'end',r:16});
-  s+=ev(240,245,{pos:'start',type:'message',r:17});
-  s+=task(400,245,150,54,'Anfrage\nprüfen');
-  s+=poly([[257,245],[325,245]]);
-  s+=poly([[475,245],[525,245]]);
-  s+=task(600,245,150,54,'Antwort\nsenden');
-  s+=poly([[675,245],[723,245]]);
-  s+=ev(740,245,{pos:'end',r:17});
-  s+=poly([[240,111],[240,228]], {message:true, dashed:true});
-  s+=poly([[600,218],[600,101]], {message:true, dashed:true});
-  return svgWrap([820,340], s);
+  s+=pool(20,20,460,180,'Prüfungsservice');
+  s+=ev(95,110,{pos:'start',r:18});
+  s+=task(225,110,170,72,'Antrag\nprüfen');
+  s+=ev(395,110,{pos:'end',r:18});
+  s+=poly([[113,110],[140,110]]);
+  s+=poly([[310,110],[377,110]]);
+  return svgWrap([500,220], s);
 }
-
-/* ---------- lanes inside one pool ---------- */
 function svgLanes(){
   var s='';
-  s+=pool(20,20,560,240,'Fachbereich',['Sachbearbeitung','Leitung']);
+  s+=pool(20,20,560,240,'Hochschule',['Prüfungs-\nservice','Prüfungs-\nausschuss']);
   s+=ev(110,80,{pos:'start',r:16});
   s+=task(250,80,150,54,'Antrag\nerfassen');
   s+=poly([[126,80],[175,80]]);
@@ -612,20 +885,75 @@ function svgLanes(){
   s+=ev(420,200,{pos:'end',r:16});
   return svgWrap([620,290], s);
 }
-
-/* ---------- the three connection types ---------- */
+function svgBlackBox(){
+  var s='';
+  s+=pool(20,20,520,150,'Prüfungsservice');
+  s+=ev(110,95,{pos:'start',r:16});
+  s+=task(250,95,150,54,'Anfrage\nsenden');
+  s+=poly([[126,95],[175,95]]);
+  s+=poly([[325,95],[444,95]]);
+  s+=ev(460,95,{pos:'end',r:16});
+  s+='<rect x="20" y="215" width="520" height="130" class="shape" stroke-width="2"/>';
+  s+='<rect x="20" y="215" width="34" height="130" class="lane-tab" stroke-width="2"/>';
+  s+='<text class="dtext" text-anchor="middle" transform="rotate(-90 37 280)" x="37" y="285">Externe Stelle</text>';
+  s+=poly([[250,122],[250,215]], {message:true, dashed:true});
+  return svgWrap([600,365], s);
+}
+function svgCollab(){
+  var s='';
+  s+=pool(20,20,760,130,'Studierende');
+  s+=pool(20,170,760,150,'Prüfungsservice');
+  s+=ev(110,85,{pos:'start',r:16});
+  s+=task(240,85,140,52,'Antrag\nstellen');
+  s+=poly([[126,85],[170,85]]);
+  s+=poly([[310,85],[584,85]]);
+  s+=ev(600,85,{pos:'inter',type:'message',r:16});
+  s+=poly([[616,85],[684,85]]);
+  s+=ev(700,85,{pos:'end',r:16});
+  s+=ev(240,245,{pos:'start',type:'message',r:17});
+  s+=task(400,245,150,54,'Antrag\nprüfen');
+  s+=poly([[257,245],[325,245]]);
+  s+=poly([[475,245],[525,245]]);
+  s+=task(600,245,150,54,'Bescheid\nversenden');
+  s+=poly([[675,245],[723,245]]);
+  s+=ev(740,245,{pos:'end',r:17});
+  s+=poly([[240,111],[240,228]], {message:true, dashed:true});
+  s+=poly([[600,218],[600,101]], {message:true, dashed:true});
+  return svgWrap([820,340], s);
+}
+function svgSeqAcrossPools(){
+  var s='';
+  s+=pool(20,20,620,120,'Antragsteller');
+  s+=pool(20,160,620,120,'Verwaltung');
+  s+=ev(110,80,{pos:'start',r:16});
+  s+=task(250,80,150,52,'Antrag\nstellen');
+  s+=poly([[126,80],[175,80]]);
+  s+=ev(120,220,{pos:'start',r:16});
+  s+=task(430,220,150,52,'Antrag\nbearbeiten');
+  s+=poly([[136,220],[355,220]]);
+  s+=poly([[250,106],[250,220],[300,220]]);
+  return svgWrap([680,300], s);
+}
 function svgFlowTypes(){
   var s='';
-  s+='<text x="28" y="66" class="dtext" text-anchor="middle">1</text>';
+  s+='<text x="28" y="66" class="dtext" text-anchor="middle">A</text>';
   s+=poly([[60,60],[330,60]]);
-  s+='<text x="28" y="136" class="dtext" text-anchor="middle">2</text>';
+  s+='<text x="28" y="136" class="dtext" text-anchor="middle">B</text>';
   s+=poly([[60,130],[330,130]], {dashed:true, message:true});
-  s+='<text x="28" y="206" class="dtext" text-anchor="middle">3</text>';
+  s+='<text x="28" y="206" class="dtext" text-anchor="middle">C</text>';
   s+=poly([[60,200],[330,200]], {dotted:true, noArrow:true});
   return svgWrap([380,250], s);
 }
 
-/* ---------- boundary event on an activity ---------- */
+/* ---------- Block 2: Ereignisse ---------- */
+function svgCatchThrow(){
+  var s='';
+  s+='<text x="95" y="42" class="dtext" text-anchor="middle">A</text>';
+  s+=ev(95,110,{pos:'inter',type:'message',r:34});
+  s+='<text x="245" y="42" class="dtext" text-anchor="middle">B</text>';
+  s+=ev(245,110,{pos:'inter',type:'message',r:34,filled:true});
+  return svgWrap([340,190], s);
+}
 function svgBoundary(o){
   var s='', lbl='';
   s+=ev(50,130,{pos:'start'});
@@ -643,8 +971,15 @@ function svgBoundary(o){
   if(o.cond) lbl+=flowLabel(340,232,o.cond);
   return svgWrap([700,330], s+lbl);
 }
-
-/* ---------- process waits at an intermediate catching event ---------- */
+function svgMessageStart(){
+  var s='';
+  s+=ev(60,100,{pos:'start',type:'message',r:22});
+  s+=task(240,100,170,72,'Anfrage\nerfassen');
+  s+=poly([[82,100],[155,100]]);
+  s+=poly([[325,100],[382,100]]);
+  s+=ev(400,100,{pos:'end'});
+  return svgWrap([460,200], s);
+}
 function svgWaitMessage(){
   var s='';
   s+=ev(50,110,{pos:'start'});
@@ -659,23 +994,32 @@ function svgWaitMessage(){
   s+=ev(650,110,{pos:'end'});
   return svgWrap([710,220], s);
 }
-
-/* ---------- data object and text annotation ---------- */
-function svgArtefacts(){
+function svgTimerStart(){
   var s='';
-  s+=ev(50,120,{pos:'start'});
-  s+=task(200,120,170,64,'Antrag\nprüfen');
-  s+=poly([[68,120],[115,120]]);
-  s+=poly([[285,120],[332,120]]);
-  s+=ev(350,120,{pos:'end'});
-  s+=dataObject(200,38,'Antragsformular');
-  s+=poly([[200,64],[200,88]], {dotted:true, noArrow:true});
-  s+=poly([[262,152],[400,178]], {dotted:true, noArrow:true});
-  s+=annotation(400,150,52,'Nur vollständige\nAnträge weiterleiten');
-  return svgWrap([620,240], s);
+  s+=ev(60,100,{pos:'start',type:'timer',r:22});
+  s+=task(250,100,190,72,'Auswertung\nerstellen');
+  s+=poly([[82,100],[155,100]]);
+  s+=poly([[345,100],[402,100]]);
+  s+=ev(420,100,{pos:'end'});
+  return svgWrap([480,200], s);
 }
-
-/* ---------- event-based gateway: message vs. timer ---------- */
+function svgTerminateCtx(){
+  var s='';
+  s+=ev(50,140,{pos:'start'});
+  s+=task(180,140,150,60,'Prüfung\nstarten');
+  s+=gw(330,140,'and');
+  s+=poly([[68,140],[105,140]]);
+  s+=poly([[255,140],[308,140]]);
+  s+=poly([[352,140],[380,140],[380,70],[470,70]]);
+  s+=task(570,70,190,56,'Fachlich\nprüfen');
+  s+=poly([[665,70],[702,70]]);
+  s+=ev(720,70,{pos:'end'});
+  s+=poly([[352,140],[380,140],[380,215],[470,215]]);
+  s+=task(570,215,190,56,'Formfehler\nfeststellen');
+  s+=poly([[665,215],[702,215]]);
+  s+=ev(720,215,{pos:'end',type:'terminate'});
+  return svgWrap([790,290], s);
+}
 function svgEventGateway(o){
   var s='';
   s+=ev(50,140,{pos:'start'});
@@ -699,51 +1043,210 @@ function svgEventGateway(o){
   s+=ev(765,215,{pos:'end'});
   return svgWrap([820,300], s);
 }
-
-/* ---------- capstone: message start, correction loop, clean XOR join ---------- */
-function svgCapstone(){
-  var s='', lbl='';
-  s+=ev(45,150,{pos:'start',type:'message'});
-  s+=task(170,150,150,58,'Antrag\nerfassen');
-  s+=poly([[63,150],[95,150]]);
-  s+=poly([[245,150],[280,150]]);
-  s+=gw(300,150,'xor',20);
-  s+=poly([[320,150],[355,150]]);
-  s+=task(430,150,150,58,'Antrag\nprüfen');
-  s+=poly([[505,150],[550,150]]);
-  s+=gw(570,150,'xor',20);
-  s+=poly([[590,150],[620,150],[620,80],[705,80]]);
-  lbl+=flowLabel(660,58,'Antrag\ngenehmigen');
-  s+=task(800,80,190,56,'Bescheid\nversenden');
-  s+=poly([[895,80],[932,80]]);
-  s+=ev(950,80,{pos:'end'});
-  s+=poly([[570,170],[570,255],[300,255],[300,170]]);
-  lbl+=flowLabel(435,278,'Antrag\nüberarbeiten');
-  return svgWrap([1010,320], s+lbl);
+function svgLinkPair(){
+  var s='';
+  s+=task(120,80,150,58,'Antrag\nprüfen');
+  s+=poly([[195,80],[248,80]]);
+  s+=ev(268,80,{pos:'inter',type:'link',r:20,filled:true});
+  s+=evLabel(268,80,20,'A');
+  s+=ev(120,215,{pos:'inter',type:'link',r:20});
+  s+=evLabel(120,215,20,'A');
+  s+=poly([[140,215],[193,215]]);
+  s+=task(290,215,160,58,'Bescheid\nversenden');
+  s+=poly([[370,215],[412,215]]);
+  return svgWrap([470,290], s);
 }
 
-/* ---------- default (fallback) flow ---------- */
+/* ---------- Block 3: Aufgaben, Sonderfälle, Daten ---------- */
+function svgTaskCtx(marker, a, b){
+  var s='';
+  s+=ev(55,100,{pos:'start'});
+  s+=task(215,100,185,76,a,{marker:marker});
+  s+=task(430,100,175,72,b);
+  s+=ev(570,100,{pos:'end'});
+  s+=poly([[73,100],[118,100]]);
+  s+=poly([[308,100],[338,100]]);
+  s+=poly([[518,100],[547,100]]);
+  return svgWrap([630,200], s);
+}
+function svgSubprocess(){
+  var s='';
+  s+=ev(55,110,{pos:'start'});
+  s+=task(230,110,190,86,'Zahlung\nverarbeiten',{bottom:['sub']});
+  s+=task(455,110,175,72,'Auftrag\nfreigeben');
+  s+=ev(595,110,{pos:'end'});
+  s+=poly([[73,110],[130,110]]);
+  s+=poly([[325,110],[363,110]]);
+  s+=poly([[543,110],[572,110]]);
+  return svgWrap([655,220], s);
+}
+function svgSubError(){
+  var s='', lbl='';
+  s+=ev(50,120,{pos:'start'});
+  s+=task(230,120,190,84,'Zahlung\nverarbeiten',{bottom:['sub']});
+  s+=boundaryEvent(230,120,190,84,'error');
+  s+=poly([[68,120],[135,120]]);
+  s+=poly([[325,120],[420,120]]);
+  s+=task(520,120,180,64,'Auftrag\nfreigeben');
+  s+=poly([[610,120],[652,120]]);
+  s+=ev(670,120,{pos:'end'});
+  s+=poly([[295,180],[295,255],[420,255]]);
+  s+=task(520,255,180,64,'Zahlung\nmanuell klären');
+  s+=poly([[610,255],[647,255]]);
+  s+=ev(665,255,{pos:'end'});
+  lbl+=flowLabel(360,232,'Fehler ist\naufgetreten');
+  return svgWrap([720,330], s+lbl);
+}
 function svgDefaultFlow(){
   var s='', lbl='';
   s+=ev(50,140,{pos:'start'});
   s+=task(200,140,170,64,'Bestellung\nprüfen');
   s+=gw(380,140,'xor');
+  lbl+=gwQuestion(380,140,22,'Bestellwert?');
   s+=poly([[68,140],[115,140]]);
   s+=poly([[285,140],[358,140]]);
-  s+=poly([[402,140],[430,140],[430,70],[530,70]]);
-  lbl+=flowLabel(480,48,'Express\nversenden');
-  s+=task(630,70,190,56,'Expressversand\nbuchen');
+  s+=poly([[402,140],[445,140],[445,70],[530,70]]);
+  lbl+=flowLabel(490,48,'über 100 €');
+  s+=task(630,70,190,56,'Express-\nversand buchen');
   s+=poly([[720,70],[757,70]]);
   s+=ev(775,70,{pos:'end'});
   s+=poly([[380,162],[380,215],[530,215]], {isDefault:true});
-  s+=task(630,215,190,56,'Standardversand\nbuchen');
+  lbl+=flowLabel(455,238,'sonst');
+  s+=task(630,215,190,56,'Standard-\nversand buchen');
   s+=poly([[720,215],[757,215]]);
   s+=ev(775,215,{pos:'end'});
   return svgWrap([830,290], s+lbl);
 }
 
-/* ---------- token counting: AND inside AND ---------- */
-function svgTokens(){
+function svgConditionalFlow(){
+  var s='', lbl='';
+  s+=ev(50,110,{pos:'start'});
+  s+=task(210,110,170,64,'Antrag\nprüfen');
+  s+=poly([[68,110],[125,110]]);
+  s+=poly([[295,96],[340,96],[340,55],[420,55]], {isConditional:true});
+  lbl+=flowLabel(380,34,'Rückfragen\noffen');
+  s+=task(515,55,180,56,'Rückfrage\nstellen');
+  s+=poly([[605,55],[648,55]]);
+  s+=ev(666,55,{pos:'end'});
+  s+=poly([[295,124],[340,124],[340,175],[420,175]], {isDefault:true});
+  s+=task(515,175,180,56,'Bescheid\nversenden');
+  s+=poly([[605,175],[648,175]]);
+  s+=ev(666,175,{pos:'end'});
+  return svgWrap([720,250], s+lbl);
+}
+function svgArtefacts(){
+  var s='';
+  s+=ev(50,125,{pos:'start'});
+  s+=task(205,125,170,64,'Antrag\nprüfen');
+  s+=poly([[68,125],[120,125]]);
+  s+=poly([[290,125],[337,125]]);
+  s+=ev(355,125,{pos:'end'});
+  s+=dataObject(205,42);
+  s+='<text x="236" y="47" class="ftext" text-anchor="start">Antragsformular</text>';
+  s+=poly([[205,68],[205,93]], {dotted:true, noArrow:true});
+  s+=poly([[267,157],[405,183]], {dotted:true, noArrow:true});
+  s+=annotation(405,155,52,'Nur vollständige\nAnträge weiterleiten');
+  return svgWrap([630,250], s);
+}
+function svgDataStoreCtx(){
+  var s='';
+  s+=ev(50,140,{pos:'start'});
+  s+=task(215,140,175,68,'Daten\nabgleichen');
+  s+=poly([[68,140],[128,140]]);
+  s+=poly([[303,140],[352,140]]);
+  s+=ev(370,140,{pos:'end'});
+  s+=dataStore(215,50);
+  s+='<text x="250" y="55" class="ftext" text-anchor="start">Studierendenverwaltung</text>';
+  s+=poly([[215,72],[215,106]], {dotted:true, noArrow:true});
+  return svgWrap([440,240], s);
+}
+function svgGroupCtx(){
+  var s='';
+  s+=groupBox(105,45,330,130,'Phase: Antragsprüfung');
+  s+=ev(55,110,{pos:'start'});
+  s+=task(190,110,130,60,'Antrag\nerfassen');
+  s+=task(350,110,130,60,'Antrag\nprüfen');
+  s+=poly([[73,110],[123,110]]);
+  s+=poly([[255,110],[283,110]]);
+  s+=poly([[415,110],[475,110]]);
+  s+=task(560,110,130,60,'Bescheid\nversenden');
+  s+=poly([[625,110],[657,110]]);
+  s+=ev(675,110,{pos:'end'});
+  return svgWrap([740,220], s);
+}
+
+/* ---------- Block 4: Abschlussquiz ---------- */
+function svgCapstone(){
+  var s='', lbl='';
+  s+=pool(15,15,850,120,'Beschäftigte');
+  s+=pool(15,155,850,300,'Hochschule',['Reisekosten-\nstelle','Vorgesetzte']);
+  /* Beschäftigte */
+  s+=ev(75,75,{pos:'start',r:16});
+  s+=task(190,75,130,50,'Dienstreise\nbeantragen');
+  s+=poly([[91,75],[125,75]]);
+  s+=poly([[255,75],[644,75]]);
+  s+=ev(660,75,{pos:'inter',type:'message',r:16});
+  s+=poly([[676,75],[784,75]]);
+  s+=ev(800,75,{pos:'end',r:16});
+  /* Reisekostenstelle */
+  s+=ev(130,215,{pos:'start',type:'message',r:16});
+  s+=poly([[146,215],[182,215]]);
+  s+=gw(200,215,'xor',18);
+  s+=poly([[218,215],[255,215]]);
+  s+=task(330,215,150,52,'Antrag\nprüfen');
+  s+=poly([[405,215],[452,215]]);
+  s+=gw(470,215,'xor',18);
+  lbl+=gwQuestion(470,215,18,'Unterlagen\nvollständig?');
+  s+=poly([[470,233],[470,275],[405,275]]);
+  lbl+=flowLabel(495,255,'nein');
+  s+=task(330,275,150,50,'Unterlagen\nnachfordern');
+  s+=poly([[255,275],[200,275],[200,233]]);
+  s+=poly([[488,215],[560,215],[560,380],[575,380]]);
+  lbl+=flowLabel(585,262,'ja');
+  /* Vorgesetzte */
+  s+=task(660,380,170,52,'Dienstreise\ngenehmigen');
+  s+=poly([[660,354],[660,241]]);
+  s+=task(660,215,150,52,'Bescheid\nversenden');
+  s+=poly([[735,215],[784,215]]);
+  s+=ev(800,215,{pos:'end',r:16});
+  /* Nachrichtenflüsse */
+  s+=poly([[130,100],[130,199]], {message:true, dashed:true});
+  s+=poly([[660,189],[660,91]], {message:true, dashed:true});
+  return svgWrap([880,470], s+lbl);
+}
+
+function svgNested(){
+  var s='', lbl='';
+  s+=ev(40,150,{pos:'start'});
+  s+=task(160,150,150,60,'Auftrag\nerfassen');
+  s+=gw(310,150,'and');
+  s+=poly([[58,150],[85,150]]);
+  s+=poly([[235,150],[288,150]]);
+  s+=poly([[332,150],[360,150],[360,70],[430,70]]);
+  s+=task(525,70,190,56,'Rechnung\nerstellen');
+  s+=poly([[332,150],[360,150],[360,235],[400,235]]);
+  s+=gw(420,235,'xor',20);
+  lbl+=gwQuestion(420,235,20,'Ware\nversenden?');
+  s+=poly([[440,235],[470,235],[470,180],[580,180]]);
+  lbl+=flowLabel(520,162,'ja');
+  s+=task(680,180,190,56,'Versand\nbeauftragen');
+  s+=poly([[440,235],[470,235],[470,300],[580,300]]);
+  lbl+=flowLabel(520,322,'nein');
+  s+=task(680,300,190,56,'Abholung\navisieren');
+  s+=poly([[775,180],[810,180],[810,235],[828,235]]);
+  s+=poly([[775,300],[810,300],[810,235],[828,235]]);
+  s+=gw(850,235,'xor',20);
+  s+=poly([[620,70],[930,70],[930,128]]);
+  s+=poly([[870,235],[930,235],[930,172]]);
+  s+=gw(930,150,'and');
+  s+=poly([[952,150],[985,150]]);
+  s+=task(1080,150,170,60,'Auftrag\nabschließen');
+  s+=poly([[1165,150],[1192,150]]);
+  s+=ev(1210,150,{pos:'end'});
+  return svgWrap([1260,370], s+lbl);
+}
+
+function svgTokenCount(){
   var s='';
   s+=ev(50,150,{pos:'start'});
   s+=task(180,150,150,60,'Auftrag\nprüfen');
@@ -760,519 +1263,609 @@ function svgTokens(){
   s+=task(660,215,190,50,'Rechnung\nerstellen');
   return svgWrap([820,270], s);
 }
-
-/* ---------- terminate end event inside a parallel branch ---------- */
-function svgTerminate(){
-  var s='', lbl='';
-  s+=ev(50,140,{pos:'start'});
-  s+=task(180,140,150,60,'Prüfung\nstarten');
-  s+=gw(330,140,'and');
-  s+=poly([[68,140],[105,140]]);
-  s+=poly([[255,140],[308,140]]);
-  s+=poly([[352,140],[380,140],[380,70],[470,70]]);
-  s+=task(570,70,190,56,'Unterlagen\nsichten');
-  s+=poly([[665,70],[702,70]]);
-  s+=ev(720,70,{pos:'end'});
-  s+=poly([[352,140],[380,140],[380,215],[470,215]]);
-  s+=task(570,215,190,56,'Betrug\nfeststellen');
-  s+=poly([[665,215],[702,215]]);
-  s+=ev(720,215,{pos:'end',type:'terminate'});
-  return svgWrap([790,290], s+lbl);
+function svgBoundaryTimerCase(){
+  return svgBoundary({act:'Freigabe\neinholen',type:'timer',main:'Vertrag\nabschließen',alt:'Eskalation\nauslösen',cond:'Frist\nabgelaufen'});
 }
 
-/* ---------- sub-process with attached error boundary event ---------- */
-function svgSubError(){
-  var s='', lbl='';
-  s+=ev(50,120,{pos:'start'});
-  s+=task(230,120,190,84,'Zahlung\nverarbeiten',{sub:true});
-  s+=boundaryEvent(230,120,190,84,'error');
-  s+=poly([[68,120],[135,120]]);
-  s+=poly([[325,120],[420,120]]);
-  s+=task(520,120,180,64,'Auftrag\nfreigeben');
-  s+=poly([[610,120],[652,120]]);
-  s+=ev(670,120,{pos:'end'});
-  s+=poly([[295,180],[295,255],[420,255]]);
-  s+=task(520,255,180,64,'Zahlung\nmanuell klären');
-  s+=poly([[610,255],[647,255]]);
-  s+=ev(665,255,{pos:'end'});
-  lbl+=flowLabel(355,232,'Fehler\nbehandeln');
-  return svgWrap([720,330], s+lbl);
-}
-
-/* ---------- AND branch containing a nested XOR ---------- */
-function svgNested(){
-  var s='', lbl='';
-  s+=ev(40,150,{pos:'start'});
-  s+=task(160,150,150,60,'Auftrag\nerfassen');
-  s+=gw(310,150,'and');
-  s+=poly([[58,150],[85,150]]);
-  s+=poly([[235,150],[288,150]]);
-  s+=poly([[332,150],[360,150],[360,70],[430,70]]);
-  s+=task(525,70,190,56,'Rechnung\nerstellen');
-  s+=poly([[332,150],[360,150],[360,235],[400,235]]);
-  s+=gw(420,235,'xor',20);
-  s+=poly([[440,235],[470,235],[470,180],[580,180]]);
-  lbl+=flowLabel(525,158,'Ware\nversenden');
-  s+=task(680,180,190,56,'Versand\nbeauftragen');
-  s+=poly([[440,235],[470,235],[470,300],[580,300]]);
-  lbl+=flowLabel(525,323,'Ware\nabholen lassen');
-  s+=task(680,300,190,56,'Abholung\navisieren');
-  s+=poly([[775,180],[810,180],[810,235],[828,235]]);
-  s+=poly([[775,300],[810,300],[810,235],[828,235]]);
-  s+=gw(850,235,'xor',20);
-  s+=poly([[620,70],[930,70],[930,128]]);
-  s+=poly([[870,235],[930,235],[930,172]]);
-  s+=gw(930,150,'and');
-  s+=poly([[952,150],[985,150]]);
-  s+=task(1080,150,170,60,'Auftrag\nabschließen');
-  s+=poly([[1165,150],[1192,150]]);
-  s+=ev(1210,150,{pos:'end'});
-  return svgWrap([1260,370], s+lbl);
-}
-
-/* ---------- sequence flow drawn between two pools (not allowed) ---------- */
-function svgSeqBetweenPools(){
+/* ---------- additional diagrams ---------- */
+function svgProcessWorkflow(){
   var s='';
-  s+=pool(20,20,620,120,'Antragsteller');
-  s+=pool(20,160,620,120,'Verwaltung');
-  s+=ev(110,80,{pos:'start',r:16});
-  s+=task(250,80,150,52,'Antrag\nstellen');
-  s+=poly([[126,80],[175,80]]);
-  s+=task(430,220,150,52,'Antrag\nbearbeiten');
-  s+=ev(120,220,{pos:'start',r:16});
-  s+=poly([[136,220],[355,220]]);
-  s+=poly([[250,106],[250,220],[300,220]]);
-  return svgWrap([680,300], s);
+  s+='<rect x="20" y="20" width="560" height="200" rx="18" class="shape" stroke-width="2"/>';
+  s+='<text x="44" y="56" class="dtext" text-anchor="start">Prozess: was fachlich geschieht</text>';
+  s+='<text x="44" y="80" class="ftext" text-anchor="start">auch Telefonate, Papier, Absprachen</text>';
+  s+='<rect x="320" y="98" width="236" height="100" rx="14" class="shape" stroke-width="2" stroke-dasharray="7,5"/>';
+  s+='<text x="438" y="136" class="dtext" text-anchor="middle">Workflow</text>';
+  s+='<text x="438" y="160" class="ftext" text-anchor="middle">was ein System</text>';
+  s+='<text x="438" y="175" class="ftext" text-anchor="middle">davon ausführt</text>';
+  return svgWrap([600,240], s);
 }
-
-/* ---------- XOR whose outgoing paths carry no condition labels ---------- */
-function svgUnlabeled(){
+function svgThrowInFlow(){
   var s='';
-  s+=ev(50,140,{pos:'start'});
-  s+=task(190,140,160,66,'Rechnung\nprüfen');
-  s+=gw(350,140,'xor');
-  s+=poly([[68,140],[110,140]]);
-  s+=poly([[270,140],[328,140]]);
-  s+=poly([[372,140],[400,140],[400,75],[500,75]]);
-  s+=task(600,75,200,58,'Rechnung\nfreigeben');
-  s+=poly([[700,75],[737,75]]);
-  s+=ev(755,75,{pos:'end'});
-  s+=poly([[372,140],[400,140],[400,205],[500,205]]);
-  s+=task(600,205,200,58,'Rechnung\nzurückweisen');
-  s+=poly([[700,205],[737,205]]);
-  s+=ev(755,205,{pos:'end'});
-  return svgWrap([810,280], s);
-}
-
-/* ---------- activity without an incoming sequence flow ---------- */
-function svgOrphan(){
-  var s='';
-  s+=ev(50,90,{pos:'start'});
-  s+=task(215,90,170,64,'Antrag\nerfassen');
-  s+=poly([[68,90],[130,90]]);
-  s+=poly([[300,90],[352,90]]);
-  s+=ev(370,90,{pos:'end'});
-  s+=task(215,215,170,64,'Antrag\narchivieren');
-  return svgWrap([440,300], s);
-}
-
-/* ---------- missing end event ---------- */
-function svgMissingEnd(){
-  var s='';
-  s+=ev(60,100,{pos:'start'});
-  s+=task(225,100,170,72,'Anfrage\nbearbeiten');
-  s+=task(425,100,170,72,'Antwort\nsenden');
-  s+=poly([[78,100],[140,100]]);
-  s+=poly([[310,100],[340,100]]);
-  s+=poly([[510,100],[600,100]]);
-  return svgWrap([640,200], s);
-}
-
-/* ---------- end event with an outgoing sequence flow ---------- */
-function svgEndOutgoing(){
-  var s='';
-  s+=ev(50,100,{pos:'start'});
-  s+=task(220,100,170,72,'Vorgang\nabschließen');
-  s+=ev(370,100,{pos:'end'});
-  s+=task(530,100,170,72,'Archivieren');
-  s+=ev(660,100,{pos:'end'});
-  s+=poly([[68,100],[135,100]]);
-  s+=poly([[305,100],[352,100]]);
-  s+=poly([[388,100],[445,100]]);
-  s+=poly([[615,100],[642,100]]);
-  return svgWrap([720,200], s);
-}
-
-/* ---------- activity with two outgoing flows and no gateway ---------- */
-function svgImplicitSplit(){
-  var s='';
-  s+=ev(50,140,{pos:'start'});
-  s+=task(190,140,170,72,'Zahlung\nerhalten');
-  s+=poly([[68,140],[105,140]]);
-  s+=poly([[275,140],[310,140],[310,80],[375,80]]);
-  s+=task(460,80,170,64,'Ware\nversenden');
-  s+=poly([[545,80],[582,80]]);
-  s+=ev(600,80,{pos:'end'});
-  s+=poly([[275,140],[310,140],[310,200],[375,200]]);
-  s+=task(460,200,170,64,'Rechnung\narchivieren');
-  s+=poly([[545,200],[582,200]]);
-  s+=ev(600,200,{pos:'end'});
-  return svgWrap([660,280], s);
-}
-
-/* ---------- two intermediate events: catching vs. throwing ---------- */
-function svgCatchThrow(){
-  var s='';
-  s+='<text x="95" y="42" class="dtext" text-anchor="middle">A</text>';
-  s+=ev(95,110,{pos:'inter',type:'message',r:34});
-  s+='<text x="245" y="42" class="dtext" text-anchor="middle">B</text>';
-  s+=ev(245,110,{pos:'inter',type:'message',r:34,filled:true});
-  return svgWrap([340,190], s);
-}
-
-/* ---------- message start event in context ---------- */
-function svgMessageStart(){
-  var s='';
-  s+=ev(60,100,{pos:'start',type:'message',r:22});
-  s+=task(240,100,170,72,'Anfrage\nerfassen');
-  s+=poly([[82,100],[155,100]]);
-  s+=poly([[325,100],[382,100]]);
-  s+=ev(400,100,{pos:'end'});
-  return svgWrap([460,200], s);
-}
-
-/* plain pool without lanes */
-function svgPool(){
-  var s='';
-  s+=pool(20,20,460,180,'Abteilung');
-  s+=ev(95,110,{pos:'start',r:18});
-  s+=task(225,110,170,72,'Vorgang\nbearbeiten');
-  s+=ev(395,110,{pos:'end',r:18});
-  s+=poly([[113,110],[140,110]]);
-  s+=poly([[310,110],[377,110]]);
-  return svgWrap([500,220], s);
+  s+=ev(50,105,{pos:'start'});
+  s+=task(185,105,150,64,'Rückfrage\nformulieren');
+  s+=ev(330,105,{pos:'inter',type:'message',filled:true,r:18});
+  s+=evLabel(330,105,18,'Rückfrage ist\ngesendet');
+  s+=ev(455,105,{pos:'inter',type:'message',r:18});
+  s+=evLabel(455,105,18,'Antwort ist\neingegangen');
+  s+=task(605,105,150,64,'Antrag\nbescheiden');
+  s+=ev(735,105,{pos:'end'});
+  s+=poly([[68,105],[110,105]]);
+  s+=poly([[260,105],[312,105]]);
+  s+=poly([[348,105],[437,105]]);
+  s+=poly([[473,105],[530,105]]);
+  s+=poly([[680,105],[717,105]]);
+  return svgWrap([790,200], s);
 }
 
 /* ============================================================
-   CATEGORIES
+   TOPICS AND BLOCKS
    ============================================================ */
-var CATEGORIES = {
-  symbols:  { label:'Symbole lesen',         color:'var(--c1)', tint:'var(--c1-tint)' },
-  flow:     { label:'Ablauf verstehen',      color:'var(--c2)', tint:'var(--c2-tint)' },
-  gateways: { label:'Gateways analysieren',  color:'var(--c3)', tint:'var(--c3-tint)' },
-  errors:   { label:'Fehler finden',         color:'var(--c4)', tint:'var(--c4-tint)' },
-  final:    { label:'Abschlussquiz',         color:'var(--c5)', tint:'var(--c5-tint)' }
+var TOPICS = {
+  grund:    { label:'Grundsymbole',        color:'var(--c1)', tint:'var(--c1-tint)' },
+  gateways: { label:'Gateways',            color:'var(--c3)', tint:'var(--c3-tint)' },
+  pools:    { label:'Pools und Lanes',     color:'var(--c2)', tint:'var(--c2-tint)' },
+  events:   { label:'Ereignistypen',       color:'var(--c5)', tint:'var(--c5-tint)' },
+  tasks:    { label:'Aktivitäten',         color:'var(--c4)', tint:'var(--c4-tint)' },
+  data:     { label:'Verbindungen und Daten', color:'var(--c8)', tint:'var(--c8-tint)' },
+  errors:   { label:'Stolperfallen',       color:'var(--c6)', tint:'var(--c6-tint)' },
+  final:    { label:'Abschlussquiz',       color:'var(--c6)', tint:'var(--c6-tint)' }
 };
+
+var BLOCKS = [
+  { key:'b1', title:'Übung 1: Grundsymbole, Gateways, Pools und Lanes',
+    slide:'Folie 41, vor der Pause', color:'var(--c1)',
+    desc:'Ereignisse, Aktivität, Token, alle Gateway-Typen und Zuständigkeiten' },
+  { key:'b2', title:'Übung 2: Ereignistypen',
+    slide:'Folie 53', color:'var(--c5)',
+    desc:'Fangend und werfend, angeheftete Ereignisse und die Symbole im Ereigniskreis' },
+  { key:'b3', title:'Übung 3: Aktivitäten, Verbindungen und Daten',
+    slide:'Folie 62', color:'var(--c4)',
+    desc:'Aufgabentypen, Teilprozess, Aktivitätsarten, Markierungen, Verbindungen und Artefakte' },
+  { key:'b4', title:'Abschlussquiz',
+    slide:'nach Folie 74', color:'var(--c6)',
+    desc:'GBTEC Process Design, Drei-Schritte-Vorgehen, Prüffragen und gemischte Transferfälle' }
+];
 
 /* ============================================================
    EXERCISES
    ============================================================ */
 var EXERCISES = [
 
-/* ---------- 1. SYMBOLE LESEN ---------- */
-{ id:'sym-start', category:'symbols', question:'Welches Element ist hier dargestellt?',
+/* ===== BLOCK 1 — Grundsymbole ===== */
+{ id:'b1-workflow', block:'b1', topic:'grund',
+  question:'Was beschreibt ein fachliches BPMN-Modell, wie Sie es in dieser Schulung lesen?',
+  svg:function(){return svgProcessWorkflow();},
+  options:['Den Prozess: was fachlich geschieht, auch Schritte ohne System','Nur den Workflow: was ein System automatisch ausführt','Ausschließlich die IT-Systeme einer Abteilung','Den Programmcode einer Anwendung'], correct:0,
+  explanation:'Der Prozess beschreibt den Ablauf, wie er im Alltag stattfindet – inklusive Telefonaten, Papierakten und Absprachen. Der Workflow ist nur der Teil, den ein System technisch ausführt. Merksatz: Jeder Workflow ist ein Prozess, aber längst nicht jeder Prozess wird zum Workflow.' },
+{ id:'b1-reading', block:'b1', topic:'grund',
+  question:'An welcher Stelle beginnen Sie, dieses Modell zu lesen?',
+  svg:function(){return svgReading();},
+  options:['Ganz links, beim Kreis mit dünnem Rand','Ganz rechts, beim Kreis mit dickem Rand','In der Mitte, bei der ersten Aufgabe','Das ist frei wählbar'], correct:0,
+  explanation:'Ein BPMN-Modell wird in Leserichtung gelesen: links der Auslöser, rechts das Ergebnis. Bei senkrechten Zweigen gilt: zuerst der obere Pfad, dann der untere.' },
+{ id:'b1-borders', block:'b1', topic:'grund',
+  question:'Welcher der drei Kreise ist das Zwischenereignis?',
+  svg:function(){return tplChoice4([dEv({pos:'start',r:30}),dEv({pos:'inter',r:30}),dEv({pos:'end',r:30})]);},
+  options:['A, dünner Rand','B, doppelter Rand','C, dicker Rand','Alle drei können es sein'], correct:1,
+  explanation:'Die Randstärke verrät die Position im Ablauf: dünn = Anfang, doppelt = mittendrin, dick = Schluss. In Process Design kommt die Farbe als zweite Hilfe dazu: grün, orange, schwarz.' },
+{ id:'b1-start-label', block:'b1', topic:'grund',
+  question:'Wie wird ein Startereignis richtig beschriftet?',
   svg:function(){return tplSingle(ev(150,100,{pos:'start',r:34,accent:'good'}));},
-  options:['Start-Ereignis','End-Ereignis','Aufgabe (Task)','Zwischenereignis'], correct:0,
-  explanation:'Ein Start-Ereignis ist ein Kreis mit dünnem Rand und markiert den Beginn eines Prozesses. Pro Pool sollte es genau ein Start-Ereignis geben.' },
+  options:['„Antrag eingehen“ – mit Verb, wie bei einer Aufgabe','„Antrag ist eingegangen“ – als Zustand, der eingetreten ist','„Antragsprüfung“ – als Substantiv','Ereignisse werden nicht beschriftet'], correct:1,
+  explanation:'Ein Ereignis beschreibt einen Zustand, der eingetreten ist, also „Antrag ist eingegangen“. Ein Ereignis kostet nie Arbeitszeit – es stellt nur fest, dass etwas passiert ist.' },
+{ id:'b1-end-multi', block:'b1', topic:'grund',
+  question:'Darf ein Modell mehrere Endereignisse haben?',
+  svg:function(){return svgGatewayRole();},
+  options:['Nein, genau eines pro Modell','Ja, für jeden möglichen Ausgang eines','Ja, aber nur bei parallelen Gateways','Nur wenn der Prozess mehrere Pools hat'], correct:1,
+  explanation:'Ein Prozess kann unterschiedlich ausgehen, etwa genehmigt oder abgelehnt. Jeder Ausgang bekommt ein eigenes, sprechend benanntes Endereignis. Ein Endereignis beendet dabei nur den eigenen Weg, nicht den ganzen Prozess.' },
+{ id:'b1-task', block:'b1', topic:'grund',
+  question:'Welches Element ist hier zu sehen?',
+  svg:function(){return tplSingle(task(150,100,220,110,'Antrag\nprüfen'));},
+  options:['Ereignis','Gateway','Aktivität','Pool'], correct:2,
+  explanation:'Die Aktivität ist ein Rechteck mit abgerundeten Ecken. Sie ist der einzige Baustein, in dem tatsächlich gearbeitet wird – sie verbraucht Arbeitszeit. In Process Design ist das eine Aufgabe mit dem Aufgabentyp „Unspezifiziert“.' },
+{ id:'b1-task-vs-event', block:'b1', topic:'grund',
+  question:'Worin unterscheiden sich Aktivität und Ereignis?',
+  svg:function(){return tplChoice4([dTask('Antrag\nprüfen'),dEv({pos:'inter',r:30})]);},
+  options:['In der Aktivität (A) wird gearbeitet, das Ereignis (B) stellt nur fest, dass etwas eingetreten ist','Beide bezeichnen Arbeitsschritte, nur die Form unterscheidet sich','Das Ereignis dauert länger als die Aktivität','Die Aktivität darf nur einmal vorkommen'], correct:0,
+  explanation:'Merkhilfe: Aufgaben tun etwas, Ereignisse stellen etwas fest. Nur die Aktivität verbraucht Arbeitszeit, ein Ereignis kostet nie welche.' },
+{ id:'b1-seq', block:'b1', topic:'grund',
+  question:'Was legt die durchgezogene Linie mit gefüllter Pfeilspitze fest?',
+  svg:function(){return svgSeqFlowOnly();},
+  options:['Die Reihenfolge: erst das, dann das','Wer die Aufgabe erledigt','Wie lange die Aufgabe dauert','Welche Dokumente gebraucht werden'], correct:0,
+  explanation:'Das ist der Sequenzfluss. Er legt die Reihenfolge fest und ist die einzige Linie, an der das Token entlangläuft. Er bleibt immer innerhalb eines Pools – über eine Poolgrenze hinweg ist er nicht erlaubt.' },
+{ id:'b1-token', block:'b1', topic:'grund',
+  question:'Wie viele Token sind unterwegs, nachdem der Vorgang das Gateway passiert hat?',
+  svg:function(){return svgTokenSplit();},
+  options:['Weiterhin genau einer','Zwei – für jeden Pfad einer','Keiner, das Gateway hält ihn an','Das lässt sich nicht sagen'], correct:1,
+  explanation:'Ein Token ist eine gedachte Kugel, die dem Pfeil folgt. Wo das Token steht, steht der Vorgang. Ein Gateway kann den Token aufteilen, hier werden aus einem zwei.' },
+{ id:'b1-err-verb', block:'b1', topic:'errors',
+  question:'Was ist an der Beschriftung der Aufgaben unsauber?',
+  svg:function(){return svgNoVerb();},
+  options:['Es fehlt das Verb, das die Tätigkeit beschreibt','Die Beschriftung ist zu lang','Die Aufgaben müssten Ereignisse sein','Die Reihenfolge ist vertauscht'], correct:0,
+  explanation:'„Antrag“ und „Bescheidversand“ sind Substantive, keine Tätigkeiten. Richtig ist Verb plus Objekt: „Antrag prüfen“ und „Bescheid versenden“. Sonst ergänzt der Leser im Kopf und liegt womöglich falsch.' },
+{ id:'b1-err-orphan', block:'b1', topic:'errors',
+  question:'Was stimmt mit der unteren Aufgabe nicht?',
+  svg:function(){return svgOrphan();},
+  options:['Sie hat weder einen eingehenden noch einen ausgehenden Pfeil','Sie ist falsch beschriftet','Sie müsste ein Ereignis sein','Sie liegt in der falschen Lane'], correct:0,
+  explanation:'Regel: Jedes Element gehört an einen Pfeil. Eine Aufgabe ohne Verbindung wird nie erreicht und nie aktiviert – beim Lesen fällt das kaum auf, weil sie optisch dazugehört.' },
+{ id:'b1-err-noend', block:'b1', topic:'errors',
+  question:'Was fehlt in diesem Modell?',
+  svg:function(){return svgMissingEnd();},
+  options:['Ein Gateway','Das Endereignis','Das Startereignis','Eine zweite Aktivität'], correct:1,
+  explanation:'Der letzte Pfeil läuft ins Leere. Ohne Endereignis lässt sich nicht sagen, wann der Vorgang abgeschlossen ist – und genau das ist die Grundlage jeder Messung.' },
+{ id:'b1-err-afterend', block:'b1', topic:'errors',
+  question:'Was ist hier nicht zulässig?',
+  svg:function(){return svgAfterEnd();},
+  options:['Aus dem ersten Endereignis führt ein Pfeil heraus','Es gibt zwei Endereignisse','Die Aufgabe „Akte ablegen“ ist überflüssig','Vor dem Endereignis fehlt ein Gateway'], correct:0,
+  explanation:'Nach dem Ende folgt nichts mehr. Der Prozess stoppt beim ersten Endereignis, alles Folgende wird nie erreicht. „Akte ablegen“ müsste vor dem Endereignis stehen.' },
 
-{ id:'sym-msg-start', category:'symbols', question:'Wodurch wird dieser Prozess ausgelöst?',
-  svg:function(){return svgMessageStart();},
-  options:['Durch eine eingehende Nachricht, z. B. eine E-Mail oder ein abgesendetes Formular','Zu einem festen Zeitpunkt','Durch einen Fehler in einem anderen Prozess','Gar nicht - er muss von Hand gestartet werden'], correct:0,
-  explanation:'Der Briefumschlag im Start-Ereignis kennzeichnet ein Nachrichten-Startereignis. Der Prozess startet, sobald etwas von außen eintrifft - der häufigste Auslöser in Verwaltungsprozessen.' },
-
-{ id:'sym-end', category:'symbols', question:'Und dieses Element?',
-  svg:function(){return tplSingle(ev(150,100,{pos:'end',r:34}));},
-  options:['Start-Ereignis','End-Ereignis','Zwischenereignis','Gateway'], correct:1,
-  explanation:'Ein End-Ereignis hat einen deutlich dickeren Rand als ein Start-Ereignis und beendet einen Prozesspfad.' },
-
-{ id:'sym-error-end', category:'symbols', question:'Was bedeutet dieses End-Ereignis?',
-  svg:function(){return tplSingle(ev(150,100,{pos:'end',r:34,type:'error',filled:true}));},
-  options:['Der Prozess endet regulär','Der Prozess endet mit einem Fehler, der weitergegeben wird','Der Prozess wartet auf eine Nachricht','Der Prozess wird später fortgesetzt'], correct:1,
-  explanation:'Der Blitz steht für ein Fehler-Ereignis. Als End-Ereignis beendet es den Pfad und wirft einen Fehler, den ein übergeordneter Prozess auffangen kann.' },
-
-{ id:'sym-terminate-end', category:'symbols', question:'Worin unterscheidet sich dieses End-Ereignis von einem normalen End-Ereignis?',
-  svg:function(){return tplSingle(ev(150,100,{pos:'end',r:34,type:'terminate'}));},
-  options:['Es beendet sofort den gesamten Prozess, auch alle noch laufenden Pfade','Es beendet nur den eigenen Pfad, andere Pfade laufen weiter','Es startet den Prozess neu','Es verschickt eine Abschlussnachricht'], correct:0,
-  explanation:'Der gefüllte Kreis kennzeichnet ein Terminate-Ereignis. Anders als ein normales End-Ereignis, das nur den eigenen Pfad beendet, bricht es den kompletten Prozess sofort ab - auch parallel laufende Zweige.' },
-
-{ id:'sym-inter', category:'symbols', question:'Welches Element ist hier zu sehen?',
-  svg:function(){return tplSingle(ev(150,100,{pos:'inter',r:34}));},
-  options:['Start-Ereignis','Zwischenereignis','End-Ereignis','Aufgabe (Task)'], correct:1,
-  explanation:'Ein Zwischenereignis erkennt man am doppelten dünnen Rand. Es liegt mitten im Ablauf - der Prozess läuft danach weiter.' },
-
-{ id:'sym-timer', category:'symbols', question:'Was bedeutet dieses Element im Ablauf?',
-  svg:function(){return tplSingle(ev(150,100,{pos:'inter',r:34,type:'timer'}));},
-  options:['Der Prozess wartet, bis eine Frist abgelaufen oder ein Zeitpunkt erreicht ist','Der Prozess misst, wie lange der vorherige Schritt gedauert hat','Der Prozess endet nach einer bestimmten Zeit','Der Prozess wird beschleunigt'], correct:0,
-  explanation:'Die Uhr kennzeichnet ein Timer-Ereignis. Als Zwischenereignis hält es den Ablauf an, bis die hinterlegte Zeit erreicht ist - die Basis für Fristen und Wiedervorlagen.' },
-
-{ id:'sym-signal', category:'symbols', question:'Welcher Ereignistyp ist hier dargestellt?',
-  svg:function(){return tplSingle(ev(150,100,{pos:'inter',r:34,type:'signal'}));},
-  options:['Nachricht','Timer','Signal','Fehler'], correct:2,
-  explanation:'Das Dreieck steht für ein Signal-Ereignis. Anders als eine Nachricht, die genau einen Empfänger hat, ist ein Signal ein Rundruf, den mehrere Prozesse gleichzeitig empfangen können.' },
-
-{ id:'sym-catch-throw', category:'symbols', question:'Welches der beiden Zwischenereignisse SENDET eine Nachricht?',
-  svg:function(){return svgCatchThrow();},
-  options:['A (heller Umschlag)','B (gefüllter Umschlag)','Beide','Keines - beide empfangen nur'], correct:1,
-  explanation:'Gefüllte Symbole sind werfend: Sie senden etwas. Nicht gefüllte Symbole sind fangend: Sie warten auf etwas. B sendet also eine Nachricht, A empfängt eine.' },
-
-{ id:'sym-task', category:'symbols', question:'Welches Element ist hier zu sehen?',
-  svg:function(){return tplSingle(task(150,100,220,110,'Rechnung\nprüfen'));},
-  options:['Ereignis','Gateway','Aufgabe (Task)','Pool'], correct:2,
-  explanation:'Aufgaben werden als abgerundete Rechtecke dargestellt und stehen für einen konkreten Arbeitsschritt. Ohne zusätzliches Symbol ist der Typ der Aufgabe nicht näher festgelegt.' },
-
-{ id:'sym-user-task', category:'symbols', question:'Was sagt das kleine Symbol oben links über diese Aufgabe aus?',
-  svg:function(){return tplSingle(task(150,100,220,110,'Antrag\nprüfen',{marker:'user'}));},
-  options:['Ein Mensch bearbeitet sie (User Task)','Sie läuft automatisch im System ab','Sie enthält weitere Teilschritte','Sie ist optional'], correct:0,
-  explanation:'Das Personen-Symbol kennzeichnet eine User Task: Ein Mensch erledigt sie, meist mit Systemunterstützung. Weitere Typen sind Service Task (Zahnrad), Manual Task (Hand) und Business Rule Task (Tabelle).' },
-
-{ id:'sym-service-task', category:'symbols', question:'Und was bedeutet dieses Symbol oben links?',
-  svg:function(){return tplSingle(task(150,100,220,110,'Bescheid\nversenden',{marker:'service'}));},
-  options:['Ein Mensch bearbeitet die Aufgabe','Die Aufgabe läuft automatisch im System ab (Service Task)','Die Aufgabe wird ohne Systemunterstützung erledigt','Die Aufgabe wird mehrfach wiederholt'], correct:1,
-  explanation:'Das Zahnrad kennzeichnet eine Service Task: Sie wird automatisch vom System ausgeführt, ohne dass jemand eingreifen muss.' },
-
-{ id:'sym-manual-task', category:'symbols', question:'Und dieses Symbol oben links?',
-  svg:function(){return tplSingle(task(150,100,220,110,'Akte\nablegen',{marker:'manual'}));},
-  options:['Die Aufgabe wird per Hand erledigt, ganz ohne System (Manual Task)','Die Aufgabe wird vom System ausgeführt','Die Aufgabe ist eine Entscheidungsregel','Die Aufgabe ist ein Teilprozess'], correct:0,
-  explanation:'Die Hand kennzeichnet eine Manual Task: eine rein körperliche Tätigkeit ohne Systemunterstützung, etwa das Ablegen einer Papierakte.' },
-
-{ id:'sym-subprocess', category:'symbols', question:'Was bedeutet das Pluszeichen am unteren Rand?',
-  svg:function(){return tplSingle(task(150,100,220,110,'Zahlung\nverarbeiten',{sub:true}));},
-  options:['Die Aufgabe wird mehrfach ausgeführt','Die Aufgabe enthält weitere Schritte - sie ist ein zugeklappter Teilprozess','Die Aufgabe ist besonders wichtig','Die Aufgabe kann übersprungen werden'], correct:1,
-  explanation:'Das Plus kennzeichnet einen Teilprozess: Dahinter steckt ein eigener, detaillierter Ablauf. So bleiben große Prozesse auf der obersten Ebene lesbar.' },
-
-{ id:'sym-xor', category:'symbols', question:'Welcher Gateway-Typ wird hier dargestellt?',
-  svg:function(){return tplSingle(gw(150,100,'xor',36));},
-  options:['Exklusives Gateway (XOR)','Paralleles Gateway (AND)','Inklusives Gateway (OR)','Ereignisbasiertes Gateway'], correct:0,
-  explanation:'Das X im Diamant kennzeichnet ein exklusives Gateway: Es wird genau ein ausgehender Pfad gewählt. Achtung: Auch eine leere Raute bedeutet dasselbe.' },
-
-{ id:'sym-and', category:'symbols', question:'Und dieser Gateway-Typ?',
-  svg:function(){return tplSingle(gw(150,100,'and',36));},
-  options:['Exklusives Gateway (XOR)','Paralleles Gateway (AND)','Inklusives Gateway (OR)','Ereignisbasiertes Gateway'], correct:1,
-  explanation:'Das Plus-Symbol zeigt ein paralleles Gateway: Alle ausgehenden Pfade werden gleichzeitig aktiviert, ganz ohne Bedingungsprüfung.' },
-
-{ id:'sym-or', category:'symbols', question:'Und dieser Gateway-Typ?',
-  svg:function(){return tplSingle(gw(150,100,'or',36));},
-  options:['Exklusives Gateway (XOR)','Paralleles Gateway (AND)','Inklusives Gateway (OR)','Ereignisbasiertes Gateway'], correct:2,
-  explanation:'Der Kreis im Diamant steht für ein inklusives Gateway: Es werden alle Pfade aktiviert, deren Bedingung zutrifft - einer, mehrere oder alle.' },
-
-{ id:'sym-eventgw', category:'symbols', question:'Und dieser Gateway-Typ?',
-  svg:function(){return tplSingle(gw(150,100,'eventgw',36));},
-  options:['Exklusives Gateway (XOR)','Paralleles Gateway (AND)','Inklusives Gateway (OR)','Ereignisbasiertes Gateway'], correct:3,
-  explanation:'Der doppelte Kreis mit Fünfeck kennzeichnet ein ereignisbasiertes Gateway. Hier entscheidet nicht ein Datenwert, sondern welches Ereignis zuerst eintritt.' },
-
-{ id:'sym-pool', category:'symbols', question:'Wie heißt das große Rechteck, das den gesamten Ablauf umrahmt?',
-  svg:function(){return svgPool();},
-  options:['Lane','Pool','Gruppe','Teilprozess'], correct:1,
-  explanation:'Ein Pool steht für einen Prozessteilnehmer - eine Organisation, eine Abteilung oder eine externe Partei. Verschiedene Pools kommunizieren ausschließlich über Nachrichtenflüsse.' },
-
-{ id:'sym-lane', category:'symbols', question:'Was zeigen die beiden waagerechten Streifen innerhalb des Pools?',
-  svg:function(){return svgLanes();},
-  options:['Zwei getrennte Prozesse','Lanes: die Rollen bzw. Zuständigkeiten innerhalb eines Teilnehmers','Zwei Zeitabschnitte','Zwei mögliche Varianten des Prozesses'], correct:1,
-  explanation:'Lanes gliedern einen Pool nach Rollen oder Zuständigkeiten. Jede Aufgabe liegt in genau einer Lane - so ist sofort ablesbar, wer wofür verantwortlich ist.' },
-
-{ id:'sym-flowtypes', category:'symbols', question:'Welcher der drei Pfeile ist ein Nachrichtenfluss?',
-  svg:function(){return svgFlowTypes();},
-  options:['Pfeil 1 (durchgezogen)','Pfeil 2 (gestrichelt)','Pfeil 3 (gepunktet)','Alle drei'], correct:1,
-  explanation:'Pfeil 1 ist der Sequenzfluss (Reihenfolge innerhalb eines Pools), Pfeil 2 der Nachrichtenfluss (Kommunikation zwischen Pools), Pfeil 3 eine Assoziation, die Notizen und Datenobjekte anbindet, ohne den Ablauf zu steuern.' },
-
-{ id:'sym-boundary', category:'symbols', question:'Was bedeutet der Kreis, der am Rand der Aufgabe klebt?',
-  svg:function(){return svgBoundary({act:'Freigabe\neinholen',type:'timer',main:'Vertrag\nabschließen',alt:'Eskalation\nauslösen',cond:'Frist\nabgelaufen'});},
-  options:['Ein angeheftetes Ereignis, das eintreten kann, WÄHREND die Aufgabe läuft','Das Ende der Aufgabe','Eine zweite, optionale Aufgabe','Eine Wiederholung der Aufgabe'], correct:0,
-  explanation:'Das ist ein angeheftetes Ereignis (Boundary Event). Tritt es ein, während die Aufgabe läuft, folgt der Prozess dem alternativen Pfad - hier beim Ablauf einer Frist.' },
-
-{ id:'sym-artefacts', category:'symbols', question:'Welche Aussage über die beiden zusätzlichen Elemente trifft zu?',
-  svg:function(){return svgArtefacts();},
-  options:['Beide steuern den Ablauf und sind zwingend nötig','Beide sind reine Zusatzinformationen: ein Datenobjekt und eine Notiz','Beide sind Aufgaben','Beide sind Ereignisse'], correct:1,
-  explanation:'Oben steht ein Datenobjekt (welches Dokument gebraucht oder erzeugt wird), rechts eine Textannotation (ein erklärender Kommentar). Beide sind Artefakte: Sie erhöhen die Verständlichkeit, beeinflussen den Ablauf aber nicht.' },
-
-/* ---------- 2. ABLAUF VERSTEHEN ---------- */
-{ id:'flow-order', category:'flow', question:'In welcher Reihenfolge laufen die beiden Aufgaben ab?',
-  svg:function(){return tplLinear('Bestellung\nerfassen','Ware\nversenden');},
-  options:['Erst Ware versenden, dann Bestellung erfassen','Erst Bestellung erfassen, dann Ware versenden','Beide gleichzeitig','Die Reihenfolge ist offen'], correct:1,
-  explanation:'Die durchgezogenen Pfeile (Sequenzflüsse) geben die Reihenfolge fest vor: zuerst „Bestellung erfassen", danach „Ware versenden".' },
-
-{ id:'flow-xor-one', category:'flow', question:'Wie viele der beiden Aufgaben werden in einem Durchlauf ausgeführt?',
-  svg:function(){return tplXorTwoEnds('Antrag\nprüfen','Genehmigung\nversenden','Absage\nversenden','Antrag\ngenehmigen','Antrag\nablehnen');},
-  options:['Immer beide','Genau eine, abhängig von der Entscheidung','Keine','Das hängt vom Zufall ab'], correct:1,
-  explanation:'Das exklusive Gateway (XOR) lässt genau einen Pfad zu. Die eigentliche Entscheidung fällt übrigens schon in der Aufgabe davor - das Gateway leitet nur weiter.' },
-
-{ id:'flow-and-both', category:'flow', question:'Wie viele der beiden Aufgaben werden ausgeführt?',
+/* ===== BLOCK 1 — Gateways ===== */
+{ id:'b1-gw-role', block:'b1', topic:'gateways',
+  question:'An der Raute steht eine Frage. Wo fällt die Entscheidung tatsächlich?',
+  svg:function(){return svgGatewayRole();},
+  options:['Im Gateway – es prüft den Antrag selbst','In der Aufgabe „Antrag prüfen“ davor','In den beiden Endereignissen','Das ist im Modell nicht erkennbar'], correct:1,
+  explanation:'Das Gateway ist eine Weiche: Es entscheidet nichts selbst, es leitet nur weiter. Die Frage an der Raute wertet aus, was in der Aufgabe davor ermittelt wurde. Deshalb steht vor einem Gateway fast immer eine Aufgabe wie „Antrag prüfen“. Hausregel: Die Raute stellt die Frage, die Pfade tragen die Antworten ja und nein.' },
+{ id:'b1-gw-types', block:'b1', topic:'gateways',
+  question:'Welche der vier Rauten ist das parallele Gateway?',
+  svg:function(){return tplChoice4([dGw('xor'),dGw('and'),dGw('or'),dGw('eventgw')]);},
+  options:['A – Raute mit Kreuz','B – Raute mit Pluszeichen','C – Raute mit Kreis','D – Raute mit Doppelkreis und Fünfeck'], correct:1,
+  explanation:'Das Symbol in der Raute sagt, wie viele Wege genommen werden: Kreuz = exklusiv (genau einer), Plus = parallel (alle), Kreis = inklusiv (einer, mehrere oder alle), Doppelkreis mit Fünfeck = ereignisbasiert (wer zuerst kommt).' },
+{ id:'b1-gw-empty', block:'b1', topic:'gateways',
+  question:'Was bedeutet eine Raute ganz ohne Symbol?',
+  svg:function(){return tplSingle(gw(150,100,'none',36));},
+  options:['Ein Gateway ohne festgelegten Typ','Exklusives Gateway','Paralleles Gateway','Ein Modellierungsfehler'], correct:1,
+  explanation:'Die leere Raute ist kein eigener Typ, sondern eine zweite Schreibweise für das exklusive Gateway, also die Raute mit Kreuz. Der BPMN-Standard erlaubt beide Darstellungen.' },
+{ id:'b1-xor-count', block:'b1', topic:'gateways',
+  question:'Wie viele der beiden Aufgaben werden in einem Durchlauf ausgeführt?',
+  svg:function(){return tplXorTwoEnds({first:'Antrag\nprüfen', q:'Antrag\nbewilligungs-\nfähig?', up:'Antrag\ngenehmigen', down:'Antrag\nablehnen', condUp:'ja', condDown:'nein'});},
+  options:['Immer beide','Genau eine – je nach Antwort auf die Frage','Keine','Das hängt vom Zufall ab'], correct:1,
+  explanation:'Das exklusive Gateway lässt genau einen Pfad zu, das Token wird niemals geteilt. Die Raute trägt die Frage, jeder Pfad trägt eine Antwort. Ja und nein decken zusammen jeden Fall ab.' },
+{ id:'b1-xor-join', block:'b1', topic:'gateways',
+  question:'Wartet das zusammenführende exklusive Gateway rechts auf beide Pfade?',
+  svg:function(){return tplSplitJoin({split:'xor',join:'xor',first:'Zahlungsart\nprüfen',q:'Per Last-\nschrift?',up:'Lastschrift\neinziehen',down:'Rechnung\nversenden',condUp:'ja',condDown:'nein'});},
+  options:['Ja, es wartet immer auf alle eingehenden Pfade','Nein, es leitet jeden ankommenden Token sofort weiter','Ja, aber nur wenn beide Antworten zutreffen','Es blockiert den Prozess dauerhaft'], correct:1,
+  explanation:'Ein exklusives Gateway synchronisiert nicht. Da vorher ohnehin nur ein Pfad aktiviert wurde, leitet es sofort weiter. Wichtig: Das zusammenführende Gateway muss immer dem öffnenden entsprechen – hier XOR zu XOR.' },
+{ id:'b1-err-gap', block:'b1', topic:'errors',
+  question:'Was ist an den Bedingungen problematisch?',
+  svg:function(){return svgXorGap();},
+  options:['Der Wert 500 € selbst ist von keiner Bedingung abgedeckt','Die Bedingungen widersprechen sich','Am Gateway dürfen keine Bedingungen stehen','Es fehlt ein dritter Pfad'], correct:0,
+  explanation:'„über 500 €“ und „unter 500 €“ lassen genau 500 € aus. Dann trifft keine Bedingung zu und der Token bleibt stehen. Hausregel: Die Raute stellt die Frage, die Pfade tragen ja und nein – dann ist eine Lücke unmöglich.' },
+{ id:'b1-err-nocond', block:'b1', topic:'errors',
+  question:'Was fehlt an diesem Gateway?',
+  svg:function(){return svgNoConditions();},
+  options:['Die Bedingungen an den ausgehenden Pfaden','Ein Startereignis','Ein zweites Gateway','Die Verbindung zwischen den Aufgaben'], correct:0,
+  explanation:'Am Gateway steht nicht, wann welcher Weg gilt – die Entscheidung bleibt Auslegungssache. Richtig ist: Die Raute trägt die Entscheidungsfrage (z. B. „Rechnung korrekt?“), die ausgehenden Pfeile tragen die Antworten ja und nein.' },
+{ id:'b1-err-split', block:'b1', topic:'errors',
+  question:'Was ist an dieser Verzweigung problematisch?',
+  svg:function(){return svgImplicitSplit();},
+  options:['Aus der Aufgabe gehen zwei Pfeile heraus, ohne dass ein Gateway die Absicht zeigt','Es fehlen die Bedingungen an den Pfeilen','Es gibt zwei Endereignisse','Die Aufgaben sind falsch beschriftet'], correct:0,
+  explanation:'Technisch bedeutet das: Beide Wege laufen gleichzeitig. Gemeint ist aber nur einer – der Leser muss raten. Regel: Wo sich ein Weg teilt, gehört eine Raute hin.' },
+{ id:'b1-and-count', block:'b1', topic:'gateways',
+  question:'Wie viele der beiden Aufgaben werden ausgeführt?',
   svg:function(){return tplSplitJoin({split:'and',join:'and',first:'Bestellung\nerhalten',up:'Ware\nkommissionieren',down:'Rechnung\nerstellen'});},
   options:['Nur eine, je nach Bedingung','Beide, gleichzeitig','Beide, aber streng nacheinander','Keine, das Gateway blockiert'], correct:1,
-  explanation:'Das parallele Gateway (AND) vervielfältigt den Token und aktiviert alle ausgehenden Pfade gleichzeitig - beide Aufgaben laufen parallel.' },
-
-{ id:'flow-xor-condition', category:'flow', question:'Wann wird die Aufgabe „Absage senden" ausgeführt?',
-  svg:function(){return tplXorTwoEnds('Bewerbung\nsichten','Zum Interview\neinladen','Absage\nsenden','Bewerbung\nannehmen','Bewerbung\nablehnen');},
-  options:['Immer','Wenn die Bewerbung angenommen wird','Wenn die Bewerbung abgelehnt wird','Nur wenn beide Bedingungen zutreffen'], correct:2,
-  explanation:'Die Beschriftung am ausgehenden Pfad sagt, unter welcher Bedingung dieser Weg gilt. Formuliert man sie als Aktion („Bewerbung ablehnen"), ist sofort klar, was passiert.' },
-
-{ id:'flow-wait', category:'flow', question:'Was passiert zwischen den beiden Aufgaben?',
-  svg:function(){return svgWaitMessage();},
-  options:['Der Prozess wartet, bis die Zusage eingeht','Der Prozess sendet eine Zusage','Der Prozess endet an dieser Stelle','Beide Aufgaben laufen gleichzeitig'], correct:0,
-  explanation:'Das nicht gefüllte Nachrichten-Zwischenereignis ist fangend: Der Ablauf bleibt stehen, bis die Nachricht eintrifft. Erst dann startet „Auftrag anlegen".' },
-
-{ id:'flow-collab-start', category:'flow', question:'Wodurch wird der Prozess in der Sachbearbeitung gestartet?',
-  svg:function(){return svgCollab();},
-  options:['Durch die Nachricht des Kunden','Automatisch zeitgleich mit dem Kundenprozess','Durch die Aufgabe „Anfrage prüfen"','Gar nicht - beide Pools laufen unabhängig'], correct:0,
-  explanation:'Der gestrichelte Nachrichtenfluss von oben endet am Nachrichten-Startereignis der Sachbearbeitung. Der Prozess startet also erst, wenn die Anfrage des Kunden eintrifft.' },
-
-{ id:'flow-collab-answer', category:'flow', question:'Was zeigt der gestrichelte Pfeil, der von unten nach oben führt?',
-  svg:function(){return svgCollab();},
-  options:['Die Sachbearbeitung schickt dem Kunden eine Antwort, auf die er wartet','Der Kunde startet den Prozess der Sachbearbeitung erneut','Die Reihenfolge der Aufgaben in der Sachbearbeitung','Einen Fehler im Prozess'], correct:0,
-  explanation:'Nachrichtenflüsse zeigen den Austausch zwischen Pools. Der Kunde wartet an einem fangenden Nachrichten-Zwischenereignis, bis die Antwort eintrifft - erst dann läuft sein Prozess weiter.' },
-
-{ id:'flow-boundary-fires', category:'flow', question:'Was passiert, wenn die Frist abläuft, bevor die Freigabe erteilt ist?',
-  svg:function(){return svgBoundary({act:'Freigabe\neinholen',type:'timer',main:'Vertrag\nabschließen',alt:'Eskalation\nauslösen',cond:'Frist\nabgelaufen'});},
-  options:['„Freigabe einholen" wird abgebrochen und „Eskalation auslösen" startet','Beide Folgeaufgaben starten gleichzeitig','Der Prozess endet sofort','„Freigabe einholen" beginnt von vorn'], correct:0,
-  explanation:'Ein angeheftetes Ereignis mit durchgezogenem Rand ist unterbrechend: Die Aufgabe wird abgebrochen und der Prozess folgt dem Eskalationspfad. Wird rechtzeitig freigegeben, verfällt der Timer.' },
-
-/* ---------- 3. GATEWAYS ANALYSIEREN ---------- */
-{ id:'gw-or', category:'gateways', question:'Wie viele der beiden Pfade können in einem Durchlauf gleichzeitig aktiv sein?',
-  svg:function(){return tplSplitJoin({split:'or',join:'or',first:'Bestellung\nprüfen',up:'Rabattcode\nerzeugen',down:'Geschenk\nverpacken',condUp:'Rabatt\ngewähren',condDown:'Geschenk\nbeilegen'});},
-  options:['Immer nur einer, wie beim XOR-Gateway','Einer oder beide, je nachdem wie viele Bedingungen zutreffen','Immer beide, wie beim AND-Gateway','Keiner, das Gateway wartet auf ein Ereignis'], correct:1,
-  explanation:'Beim inklusiven Gateway (OR) wird jede Bedingung einzeln geprüft und jeder zutreffende Pfad aktiviert. Der OR-Join wartet anschließend genau auf die Pfade, die tatsächlich gestartet wurden.' },
-
-{ id:'gw-and-sync', category:'gateways', question:'Was macht das zusammenführende Gateway auf der rechten Seite?',
-  svg:function(){return tplSplitJoin({split:'and',join:'and',first:'Einstellung\nbeschließen',up:'Laptop\nbereitstellen',down:'Vertrag\narchivieren'});},
-  options:['Es leitet den ersten ankommenden Pfad sofort weiter','Es wartet, bis beide Pfade fertig sind, und führt sie dann zusammen','Es wählt einen der beiden Pfade aus','Es beendet den Prozess'], correct:1,
-  explanation:'Ein AND-Join synchronisiert: Der erste Token wird festgehalten, bis auf allen eingehenden Pfaden ein Token angekommen ist. Erst dann läuft der Prozess weiter.' },
-
-{ id:'gw-xor-join', category:'gateways', question:'Wartet das zusammenführende XOR-Gateway auf beide Pfade?',
-  svg:function(){return tplSplitJoin({split:'xor',join:'xor',first:'Zahlungsart\nprüfen',up:'Lastschrift\neinziehen',down:'Rechnung\nversenden',condUp:'Per\nLastschrift\nabbuchen',condDown:'Auf\nRechnung\nliefern'});},
-  options:['Ja, es wartet immer auf alle eingehenden Pfade','Nein, es leitet jeden ankommenden Token sofort weiter','Ja, aber nur wenn beide Bedingungen zutreffen','Es blockiert den Prozess dauerhaft'], correct:1,
-  explanation:'Ein XOR-Join synchronisiert nicht. Da vorher ohnehin nur ein Pfad aktiviert wurde, leitet er sofort weiter. Nur das AND-Gateway und das OR-Gateway warten.' },
-
-{ id:'gw-loop', category:'gateways', question:'Was passiert, wenn das Dokument überarbeitet werden muss?',
+  explanation:'Das parallele Gateway aktiviert beim Verzweigen alle Pfade gleichzeitig, ohne Bedingungen zu prüfen. Aus einem Token werden mehrere.' },
+{ id:'b1-and-join', block:'b1', topic:'gateways',
+  question:'Was macht das zusammenführende parallele Gateway auf der rechten Seite?',
+  svg:function(){return tplSplitJoin({split:'and',join:'and',first:'Bestellung\nerhalten',up:'Ware\nkommissionieren',down:'Rechnung\nerstellen'});},
+  options:['Es leitet den ersten ankommenden Pfad sofort weiter','Es wartet, bis auf allen Pfaden ein Token angekommen ist','Es wählt einen der beiden Pfade aus','Es beendet den Prozess'], correct:1,
+  explanation:'Beim Zusammenführen wartet das parallele Gateway auf alle Pfade. Genau dieses Warten ist der Kern des parallelen Gateways – es synchronisiert die Zweige wieder.' },
+{ id:'b1-err-andcond', block:'b1', topic:'errors',
+  question:'Warum sind die Bedingungen an diesem Gateway ein Fehler?',
+  svg:function(){return tplSplitJoin({split:'and',join:'and',first:'Betrag\nprüfen',up:'Beleg\nprüfen',down:'Freigabe\neinholen',condUp:'ab 500 €',condDown:'unter 500 €'});},
+  options:['Das parallele Gateway liest Bedingungen nicht und startet immer alle Wege','Die Bedingungen widersprechen sich inhaltlich','Bedingungen dürfen nie an Pfeilen stehen','Die Bedingungen gehören an die Aufgaben'], correct:0,
+  explanation:'Das Gateway liest die Bedingungen gar nicht – es startet immer alle Wege. Der Leser glaubt aber, es werde entschieden. Soll wirklich entschieden werden, gehört dort ein exklusives Gateway hin.' },
+{ id:'b1-err-deadlock', block:'b1', topic:'errors',
+  question:'Was passiert, wenn der Prozess den oberen Pfad nimmt?',
+  svg:function(){return tplSplitJoin({split:'xor',join:'and',first:'Betrag\nprüfen',q:'Betrag\nfreigegeben?',up:'Betrag\nauszahlen',down:'Ablehnung\nbegründen',condUp:'ja',condDown:'nein'});},
+  options:['Der Prozess läuft normal bis zum Ende','Der Prozess friert am parallelen Gateway ein, weil der zweite Token nie ankommt','Beide Aufgaben werden nachträglich ausgeführt','Der Prozess springt an den Anfang zurück'], correct:1,
+  explanation:'Das exklusive Gateway aktiviert nur einen Weg, das parallele wartet aber auf beide. Der zweite Token kommt nie an – der Prozess friert für immer ein. Faustregel: Was mit XOR geteilt wurde, wird mit XOR zusammengeführt.' },
+{ id:'b1-err-double', block:'b1', topic:'errors',
+  question:'Wie oft wird „Bestellung abschließen“ ausgeführt?',
+  svg:function(){return tplSplitJoin({split:'and',join:'xor',first:'Auftrag\nannehmen',up:'Ware\nkommissionieren',down:'Rechnung\nerstellen',after:'Bestellung\nabschließen'});},
+  options:['Einmal','Zweimal – einmal je ankommendem Token','Gar nicht','Das hängt von den Bedingungen ab'], correct:1,
+  explanation:'Das parallele Gateway erzeugt zwei Token, das exklusive wartet nicht und lässt jeden einzeln durch. Die Folgeaufgabe läuft doppelt, auch das Endereignis wird zweimal erreicht. In der Praxis: doppelte Bestellungen, doppelte Bescheide.' },
+{ id:'b1-or-count', block:'b1', topic:'gateways',
+  question:'Wie viele Pfade können hier gleichzeitig aktiv sein?',
+  svg:function(){return tplSplitJoin({split:'or',join:'or',first:'Bestellung\nprüfen',up:'Rabattcode\nerzeugen',down:'Geschenk\nverpacken',condUp:'Rabatt\ngewünscht',condDown:'Geschenk\ngewünscht'});},
+  options:['Immer nur einer, wie beim exklusiven Gateway','Einer oder beide, je nachdem wie viele Bedingungen zutreffen','Immer beide, wie beim parallelen Gateway','Keiner, das Gateway wartet auf ein Ereignis'], correct:1,
+  explanation:'Beim inklusiven Gateway wird jede Bedingung einzeln geprüft. Beim Zusammenführen wird genau auf die Pfade gewartet, die tatsächlich gestartet wurden – einer, mehrere oder alle.' },
+{ id:'b1-eventgw', block:'b1', topic:'gateways',
+  question:'Die Zahlung geht nach 3 Tagen ein. Was passiert mit dem unteren Pfad?',
+  svg:function(){return svgEventGateway({first:'Mahnung\nversenden',upEv:'Zahlung ist\neingegangen',upTask:'Vorgang\nschließen',downEv:'Frist ist\nabgelaufen',downTask:'Exmatrikulation\neinleiten'});},
+  options:['Er läuft zusätzlich mit','Er wird verworfen, sobald die Zahlung eingeht','Der Prozess wartet trotzdem die volle Frist ab','Der Prozess bricht mit einem Fehler ab'], correct:1,
+  explanation:'Am ereignisbasierten Gateway gewinnt das Ereignis, das zuerst eintritt – alle anderen Wege werden verworfen. Klassisches Muster gegen endloses Warten: Nachricht gegen Frist.' },
+{ id:'b1-loop', block:'b1', topic:'gateways',
+  question:'Was passiert, wenn das Dokument überarbeitet werden muss?',
   svg:function(){return svgLoopClean();},
-  options:['Der Prozess endet','Der Prozess läuft über das XOR-Gateway zurück und die Schleife beginnt erneut','Die Prüfung wird übersprungen','Es wird ein zweiter Prozess gestartet'], correct:1,
-  explanation:'Der Rücksprung endet an einem zusammenführenden XOR-Gateway vor „Dokument erstellen". So ist die Schleife sauber geschlossen: Normalweg und Rücksprung laufen an einem klar sichtbaren Punkt zusammen.' },
-
-{ id:'gw-eventgw', category:'gateways', question:'Der Kunde sagt nach 3 Tagen zu. Was passiert mit dem unteren Pfad?',
-  svg:function(){return svgEventGateway({first:'Angebot\nsenden',upEv:'Zusage\nerhalten',upTask:'Auftrag\nanlegen',downEv:'14 Tage\nohne Antwort',downTask:'Angebot\nnachfassen'});},
-  options:['Er läuft zusätzlich mit','Er wird verworfen, sobald die Zusage eingeht','Der Prozess wartet trotzdem die vollen 14 Tage ab','Der Prozess bricht mit einem Fehler ab'], correct:1,
-  explanation:'Am ereignisbasierten Gateway gewinnt das Ereignis, das zuerst eintritt. Sobald die Zusage da ist, wird der Timer-Pfad deaktiviert - ein Wettrennen, das den Prozess vor endlosem Warten schützt.' },
-
-{ id:'gw-default', category:'gateways', question:'Was bedeutet der kleine Schrägstrich am unteren Pfad?',
-  svg:function(){return svgDefaultFlow();},
-  options:['Der Pfad ist gesperrt','Der Pfad ist der Standardpfad: Er gilt, wenn keine andere Bedingung zutrifft','Der Pfad wird immer zusätzlich ausgeführt','Der Pfad ist optional und kann entfallen'], correct:1,
-  explanation:'Der Schrägstrich kennzeichnet den Standardpfad. Er ist das Sicherheitsnetz für den Fall, dass keine der definierten Bedingungen zutrifft - sonst bliebe der Prozess am Gateway stehen.' },
-
-{ id:'gw-deadlock', category:'gateways', question:'Was passiert, wenn der Prozess den oberen Pfad nimmt?',
-  svg:function(){return tplSplitJoin({split:'xor',join:'and',first:'Betrag\nprüfen',up:'Auszahlung\nveranlassen',down:'Ablehnung\nbegründen',condUp:'Betrag\nfreigeben',condDown:'Betrag\nablehnen'});},
-  options:['Der Prozess läuft normal bis zum Ende','Der Prozess bleibt am parallelen Gateway stehen, weil der zweite Token nie ankommt','Beide Aufgaben werden nachträglich ausgeführt','Der Prozess springt an den Anfang zurück'], correct:1,
-  explanation:'Ein XOR-Split aktiviert nur einen Pfad, ein AND-Join wartet aber auf alle. Der fehlende Token kommt nie an, der Prozess friert ein. Faustregel: Was mit XOR geteilt wurde, wird mit XOR zusammengeführt.' },
-
-{ id:'gw-double', category:'gateways', question:'Wie oft wird „Auftrag abschließen" ausgeführt?',
-  svg:function(){return tplSplitJoin({split:'and',join:'xor',first:'Auftrag\nannehmen',up:'Ware\nkommissionieren',down:'Rechnung\nerstellen',after:'Auftrag\nabschließen'});},
-  options:['Einmal','Zweimal - einmal je ankommendem Pfad','Gar nicht','Das hängt von den Bedingungen ab'], correct:1,
-  explanation:'Der AND-Split erzeugt zwei Token. Ein XOR-Join wartet nicht, sondern leitet jeden Token einzeln weiter - die Folgeaufgabe wird also doppelt ausgelöst. Ein AND-Join hätte beide Token wieder zu einem verschmolzen.' },
-
-/* ---------- 4. FEHLER FINDEN ---------- */
-{ id:'err-missing-end', category:'errors', question:'Was ist an diesem Prozess unsauber modelliert?',
-  svg:function(){return svgMissingEnd();},
-  options:['Es fehlt ein Gateway','Es fehlt ein End-Ereignis','Die beiden Aufgaben sind falsch verbunden','Es fehlt eine Verzweigung'], correct:1,
-  explanation:'Jeder Prozesspfad sollte mit einem End-Ereignis abgeschlossen werden. Hier läuft der Sequenzfluss einfach ins Leere - man sieht nicht, ob der Prozess fertig ist.' },
-
-{ id:'err-implicit-split', category:'errors', question:'Was ist an diesem Diagramm unklar modelliert?',
-  svg:function(){return svgImplicitSplit();},
-  options:['Die Aufgabe „Zahlung erhalten" hat zwei ausgehende Sequenzflüsse ohne Gateway','Es fehlen Bedingungen an den Pfeilen','Es gibt zwei Start-Ereignisse','Die Aufgaben sind nicht miteinander verbunden'], correct:0,
-  explanation:'Das ist ein impliziter Split. Er ist technisch erlaubt, aber schlechter Stil: Der Leser muss raten, ob beide Pfade parallel laufen oder nur einer gilt. Setze immer ein Gateway, wenn sich ein Pfad teilt.' },
-
-{ id:'err-end-outgoing', category:'errors', question:'Was ist an diesem Diagramm nicht zulässig?',
-  svg:function(){return svgEndOutgoing();},
-  options:['Ein End-Ereignis hat einen ausgehenden Sequenzfluss','Es gibt zwei End-Ereignisse','Die Aufgabe „Archivieren" ist überflüssig','Es fehlt ein Gateway vor dem End-Ereignis'], correct:0,
-  explanation:'Ein End-Ereignis beendet einen Pfad endgültig - danach darf kein Sequenzfluss mehr abgehen. „Archivieren" müsste vor dem End-Ereignis stehen.' },
-
-{ id:'err-vague-label', category:'errors', question:'Was ist an der Beschriftung der ersten Aufgabe unsauber?',
-  svg:function(){return tplLinear('Anfrage','Antwort\nversenden');},
-  options:['Es fehlt ein Verb, das die Tätigkeit beschreibt','Die Beschriftung ist zu lang','Die Aufgabe müsste ein Ereignis sein','Die Reihenfolge der Aufgaben ist vertauscht'], correct:0,
-  explanation:'Aktivitäten werden aktiv formuliert, also Verb plus Objekt - zum Beispiel „Anfrage bearbeiten" statt nur „Anfrage". Eine reine Substantiv-Beschriftung lässt offen, was in diesem Schritt eigentlich passiert.' },
-
-{ id:'err-seq-pools', category:'errors', question:'Was ist an diesem Diagramm nicht zulässig?',
-  svg:function(){return svgSeqBetweenPools();},
-  options:['Zwischen den beiden Pools wurde ein durchgezogener Sequenzfluss gezogen','Beide Pools haben ein Start-Ereignis','Die Aufgaben liegen zu weit auseinander','Der untere Pool hat kein Gateway'], correct:0,
-  explanation:'Sequenzflüsse dürfen die Grenze eines Pools nie überschreiten. Kommunikation zwischen Teilnehmern wird immer als gestrichelter Nachrichtenfluss dargestellt.' },
-
-{ id:'err-unlabeled', category:'errors', question:'Was fehlt an diesem Diagramm?',
-  svg:function(){return svgUnlabeled();},
-  options:['Die Bedingungen an den ausgehenden Pfaden des Gateways','Ein Start-Ereignis','Ein zweites Gateway','Die Verbindung zwischen den Aufgaben'], correct:0,
-  explanation:'An einem exklusiven Gateway muss ablesbar sein, wann welcher Pfad gilt. Ohne Beschriftung wie „Rechnung freigeben" bzw. „Rechnung zurückweisen" bleibt die Entscheidung Interpretationssache.' },
-
-{ id:'err-loop-direct', category:'errors', question:'Was ist an dieser Korrekturschleife unsauber modelliert?',
+  options:['Der Prozess endet','Der Rücksprung führt über das XOR-Gateway zurück, die Schleife beginnt erneut','Die Prüfung wird übersprungen','Es wird ein zweiter Prozess gestartet'], correct:1,
+  explanation:'Ein Pfeil zurück nach links ist eine Schleife. Der Rücksprung endet an einem zusammenführenden XOR-Gateway, nicht direkt an der Aufgabe – so laufen Normalweg und Rücksprung an einer sichtbaren Stelle zusammen. Prüfen Sie immer, wie man wieder herauskommt.' },
+{ id:'b1-err-loop', block:'b1', topic:'errors',
+  question:'Was ist an dieser Schleife unsauber modelliert?',
   svg:function(){return svgLoopDirect();},
-  options:['Der Rücksprung führt direkt in die Aufgabe, statt über ein zusammenführendes XOR-Gateway','Schleifen sind in BPMN nicht erlaubt','Es fehlt ein zweites End-Ereignis','Die Schleife läuft in die falsche Richtung'], correct:0,
-  explanation:'Ein Pfeil direkt zurück in eine Aufgabe erzeugt einen impliziten Merge: Die Aufgabe hat plötzlich zwei eingehende Flüsse. Sauber ist ein XOR-Gateway vor der Aufgabe, an dem Normalweg und Rücksprung sichtbar zusammenlaufen.' },
+  options:['Der Rücksprung führt direkt in die Aufgabe statt über ein zusammenführendes Gateway','Schleifen sind in BPMN nicht erlaubt','Es fehlt ein zweites Endereignis','Die Schleife läuft in die falsche Richtung'], correct:0,
+  explanation:'Die Aufgabe bekommt dadurch zwei eingehende Pfeile – es entsteht eine unsichtbare Zusammenführung. Sauber ist ein zusammenführendes XOR-Gateway vor der Aufgabe: Erstellt wird nur einmal, überarbeitet beliebig oft.' },
 
-{ id:'err-orphan', category:'errors', question:'Was stimmt mit der unteren Aufgabe nicht?',
-  svg:function(){return svgOrphan();},
-  options:['Sie hat weder einen eingehenden noch einen ausgehenden Sequenzfluss','Sie ist falsch beschriftet','Sie müsste ein Ereignis sein','Sie liegt im falschen Pool'], correct:0,
-  explanation:'Jede Aufgabe muss in den Ablauf eingebunden sein. Eine Aufgabe ohne Verbindung wird nie erreicht - meist ein Überbleibsel aus der Bearbeitung.' },
+/* ===== BLOCK 1 (Fortsetzung) — Pools und Lanes, Folien 35–40 ===== */
+{ id:'b1-pool', block:'b1', topic:'pools',
+  question:'Wofür steht das große Rechteck mit der beschrifteten Leiste?',
+  svg:function(){return svgPool();},
+  options:['Für einen Beteiligten mit eigenem, in sich abgeschlossenem Ablauf','Für einen einzelnen Arbeitsschritt','Für eine Gruppe zusammengehöriger Dokumente','Für einen Zeitabschnitt im Prozess'], correct:0,
+  explanation:'Ein Pool steht für einen Beteiligten: eine Organisation, eine Abteilung oder ein System. In Process Design ist die Leiste standardmäßig blau. Merksatz: Der Pool ist die Grenze der eigenen Zuständigkeit.' },
 
-{ id:'err-and-conditions', category:'errors', question:'Warum ist die Beschriftung der beiden Pfade hier ein Fehler?',
-  svg:function(){return tplSplitJoin({split:'and',join:'and',first:'Betrag\nprüfen',up:'Beleg\nprüfen',down:'Freigabe\neinholen',condUp:'Betrag über\n500 € prüfen',condDown:'Betrag unter\n500 € prüfen'});},
-  options:['Ein paralleles Gateway prüft keine Bedingungen - es aktiviert immer alle Pfade','Die beiden Bedingungen widersprechen sich inhaltlich','Bedingungen dürfen grundsätzlich nicht beschriftet werden','Die Bedingungen gehören an die Aufgaben, nicht an die Pfeile'], correct:0,
-  explanation:'Das AND-Gateway ignoriert Bedingungen und startet grundsätzlich alle ausgehenden Pfade. Wer abhängig von einer Bedingung verzweigen will, braucht ein XOR- oder OR-Gateway.' },
-
-/* ---------- 5. ABSCHLUSSQUIZ ---------- */
-{ id:'fin-nested', category:'final', question:'Welche Kombination von Aufgaben kann in EINEM Durchlauf vorkommen?',
-  svg:function(){return svgNested();},
-  options:['„Rechnung erstellen" und „Versand beauftragen"','„Versand beauftragen" und „Abholung avisieren"','Nur „Rechnung erstellen"','Keine der Aufgaben, der Prozess blockiert'], correct:0,
-  explanation:'Das AND-Gateway startet beide Zweige. Im unteren Zweig wählt das XOR-Gateway genau einen der beiden Wege. In jedem Durchlauf läuft also „Rechnung erstellen" plus genau eine der beiden Versandaufgaben.' },
-
-{ id:'fin-tokens', category:'final', question:'Wie viele Token sind gleichzeitig unterwegs, während „Termin planen" bearbeitet wird?',
-  svg:function(){return svgTokens();},
-  options:['Einer','Zwei','Drei','Vier'], correct:2,
-  explanation:'Das erste parallele Gateway macht aus einem Token zwei. Im oberen Zweig teilt ein weiteres paralleles Gateway seinen Token noch einmal. Damit laufen drei Token gleichzeitig: zwei oben, einer unten.' },
-
-{ id:'fin-terminate', category:'final', question:'Der untere Pfad erreicht sein End-Ereignis. Was passiert mit „Unterlagen sichten", das gerade noch läuft?',
-  svg:function(){return svgTerminate();},
-  options:['Es läuft normal zu Ende','Es wird sofort abgebrochen','Es wird neu gestartet','Es wartet auf eine Freigabe'], correct:1,
-  explanation:'Der gefüllte Kreis kennzeichnet ein Terminate-Ereignis. Es beendet nicht nur den eigenen Pfad, sondern den gesamten Prozess sofort - alle parallel laufenden Aufgaben werden abgebrochen.' },
-
-{ id:'fin-suberror', category:'final', question:'Im Teilprozess „Zahlung verarbeiten" tritt ein Fehler auf. Was passiert?',
-  svg:function(){return svgSubError();},
-  options:['Der gesamte Prozess bricht ohne Ergebnis ab','Der Teilprozess wird abgebrochen und der Prozess läuft über „Zahlung manuell klären" weiter','Der Teilprozess wird automatisch wiederholt','Beide Folgeaufgaben starten gleichzeitig'], correct:1,
-  explanation:'Das angeheftete Fehler-Ereignis fängt den Fehler ab: Der Teilprozess wird abgebrochen und der Prozess folgt dem Fehlerpfad. Genau dafür sind angeheftete Ereignisse da - sie machen Ausnahmen sichtbar, statt sie zu verschweigen.' },
-
-{ id:'fin-or-and', category:'final', question:'Warum ist diese Kombination aus Gateways riskant?',
-  svg:function(){return tplSplitJoin({split:'or',join:'and',first:'Anliegen\nprüfen',up:'Rückfrage\nstellen',down:'Unterlagen\nnachfordern',condUp:'Rückfrage\nstellen',condDown:'Unterlagen\nnachfordern'});},
-  options:['Das OR-Gateway aktiviert eventuell nur einen Pfad, das AND-Gateway wartet aber auf beide','OR- und AND-Gateways dürfen generell nicht im selben Prozess vorkommen','Es fehlen die Bedingungen an den Pfaden','Der Prozess würde beide Aufgaben doppelt ausführen'], correct:0,
-  explanation:'Trifft nur eine Bedingung zu, startet das OR-Gateway nur einen Pfad. Der AND-Join wartet aber unbeirrt auf beide Token und der Prozess friert ein. Ein OR-Split wird deshalb mit einem OR-Join geschlossen.' },
-
-{ id:'fin-eventgw-hard', category:'final', question:'Welche Aussage über dieses Diagramm trifft zu?',
-  svg:function(){return svgEventGateway({first:'Mahnung\nversenden',upEv:'Zahlung\neingegangen',upTask:'Vorgang\nschließen',downEv:'10 Tage\nohne Zahlung',downTask:'Inkasso\nbeauftragen'});},
-  options:['Der Prozess entscheidet anhand von Daten, welcher Pfad gilt','Der Prozess wartet und folgt dem Pfad, dessen Ereignis zuerst eintritt','Beide Pfade laufen immer parallel','Der Prozess endet, wenn keine Zahlung eingeht'], correct:1,
-  explanation:'Am ereignisbasierten Gateway wird nicht gerechnet, sondern gewartet. Es zählt, was zuerst passiert: die Zahlung oder der Ablauf der 10 Tage. Ein XOR-Gateway würde dagegen sofort anhand vorhandener Daten entscheiden.' },
-
-{ id:'fin-boundary-nonint', category:'final', question:'Das angeheftete Ereignis hat einen gestrichelten Rand. Was bedeutet das?',
-  svg:function(){return svgBoundary({act:'Antrag\nbearbeiten',type:'message',nonInt:true,main:'Bescheid\nversenden',alt:'Rückfrage\nbeantworten',cond:'Rückfrage\neingegangen'});},
-  options:['Die Aufgabe wird abgebrochen, sobald das Ereignis eintritt','Die Aufgabe läuft weiter und der zweite Pfad startet zusätzlich','Das Ereignis wird ignoriert','Das Ereignis tritt nur einmal auf'], correct:1,
-  explanation:'Ein gestrichelter Rand kennzeichnet ein nicht unterbrechendes Ereignis: Die Aufgabe läuft ungestört weiter, zusätzlich startet ein paralleler Pfad. Bei durchgezogenem Rand würde die Aufgabe stattdessen abgebrochen.' },
-
-{ id:'fin-lanes-hard', category:'final', question:'Warum ist der durchgezogene Pfeil zwischen den beiden Streifen zulässig, zwischen zwei Pools aber nicht?',
+{ id:'b1-lane', block:'b1', topic:'pools',
+  question:'Was zeigen die beiden Streifen innerhalb des Pools?',
   svg:function(){return svgLanes();},
-  options:['Weil Lanes zum selben Teilnehmer gehören - der Ablauf bleibt innerhalb eines Prozesses','Weil Pfeile nach unten immer erlaubt sind','Weil es sich um zwei getrennte Prozesse handelt','Weil zwischen Pools nur Aufgaben, aber keine Pfeile erlaubt sind'], correct:0,
-  explanation:'Lanes gliedern denselben Pool nach Rollen, der Prozess bleibt einer - deshalb sind Sequenzflüsse erlaubt. Pools sind eigenständige Teilnehmer mit eigenem Prozess, zwischen ihnen gibt es nur Nachrichtenflüsse.' },
+  options:['Zwei getrennte Prozesse','Lanes: Rollen innerhalb desselben Beteiligten – jede Aufgabe liegt in genau einer','Zwei mögliche Varianten des Ablaufs','Zwei Zeitabschnitte'], correct:1,
+  explanation:'Lanes teilen einen Pool nach Rollen oder Systemen auf. In Process Design heißen sie untergeordnete Rollen oder Applikationen. So liest man es: „Der Prüfungsservice erfasst den Antrag, der Prüfungsausschuss gibt ihn frei.“' },
 
-{ id:'fin-capstone', category:'final', question:'Welche Aussage über diesen Prozess trifft zu?',
+{ id:'b1-blackbox', block:'b1', topic:'pools',
+  question:'Warum enthält der untere Pool keinen Ablauf?',
+  svg:function(){return svgBlackBox();},
+  options:['Der Ablauf wurde vergessen – ein Modellierungsfehler','Es ist ein Black-Box-Pool: Die Stelle ist beteiligt, ihr interner Ablauf ist für uns nicht sichtbar','Der Pool ist noch in Bearbeitung','Leere Pools werden beim Lesen ignoriert'], correct:1,
+  explanation:'Ein Black-Box-Pool ist keine Lücke, sondern eine bewusste Abgrenzung: Wir wissen, dass jemand beteiligt ist, aber nicht, wie er arbeitet. „Wir schicken die Anfrage an eine externe Stelle. Was dort geschieht, ist für uns nicht sichtbar.“' },
+
+{ id:'b1-collab-start', block:'b1', topic:'pools',
+  question:'Wodurch startet der Prozess des Prüfungsservice?',
+  svg:function(){return svgCollab();},
+  options:['Durch die Nachricht der Studierenden','Automatisch zeitgleich mit dem Prozess der Studierenden','Durch die Aufgabe „Antrag prüfen“','Gar nicht – beide Pools laufen unabhängig'], correct:0,
+  explanation:'Jeder Pool hat seinen eigenen Start und sein eigenes Ende. Die gestrichelte Linie überträgt eine Nachricht – sie trifft auf das Nachrichten-Startereignis und setzt den Prozess des Prüfungsservice in Gang.' },
+
+{ id:'b1-collab-wait', block:'b1', topic:'pools',
+  question:'Was passiert bei den Studierenden, nachdem sie den Antrag gestellt haben?',
+  svg:function(){return svgCollab();},
+  options:['Ihr Prozess ist sofort beendet','Ihr Prozess wartet am Zwischenereignis, bis der Bescheid eintrifft','Sie prüfen den Antrag selbst','Ihr Prozess startet den Antrag erneut'], correct:1,
+  explanation:'Der obere Prozess wartet an einem fangenden Nachrichten-Zwischenereignis. Erst die Antwort des Prüfungsservice setzt ihn wieder in Gang: „Die Studierenden stellen den Antrag und warten. Erst mit dem Bescheid geht es bei ihnen weiter.“' },
+
+{ id:'b1-collab-tokens', block:'b1', topic:'pools',
+  question:'Wie viele Token sind unterwegs, während der Prüfungsservice den Antrag prüft?',
+  svg:function(){return svgCollab();},
+  options:['Einer – er wandert über die gestrichelte Linie','Zwei – einer wartet bei den Studierenden, einer ist beim Prüfungsservice','Keiner, solange geprüft wird','Drei'], correct:1,
+  explanation:'Zwei Pools, zwei getrennte Abläufe, zwei Token. Über die gestrichelte Linie wandert kein Token, sondern eine Nachricht. Der Token der Studierenden steht solange am Zwischenereignis.' },
+
+{ id:'b1-err-pool', block:'b1', topic:'errors',
+  question:'Was ist an diesem Modell nicht zulässig?',
+  svg:function(){return svgSeqAcrossPools();},
+  options:['Ein durchgezogener Sequenzfluss überschreitet die Poolgrenze','Beide Pools haben ein Startereignis','Im unteren Pool fehlt ein Gateway','Die Aufgaben liegen zu weit auseinander'], correct:0,
+  explanation:'Das suggeriert, man könne den anderen Bereich steuern. Zwischen Pools gibt es nur den gestrichelten Nachrichtenfluss, und der zweite Pool hat sein eigenes Startereignis. Über Bereichsgrenzen hinweg gibt es keine Weisung, sondern Kommunikation.' },
+
+{ id:'b1-handover', block:'b1', topic:'pools',
+  question:'Wo liegt in diesem Ablauf eine Übergabe?',
+  svg:function(){return svgLanes();},
+  options:['Beim Wechsel vom Prüfungsservice zum Prüfungsausschuss','Am Startereignis','Zwischen Aufgabe und Endereignis','Es gibt keine Übergabe'], correct:0,
+  explanation:'Jeder Wechsel der Lane ist eine Übergabe – genau dort entstehen Wartezeiten, Rückfragen und Fehler. Tipp: Die Lane-Wechsel mit dem Finger nachfahren und zählen. Viele Wechsel sind der erste Ansatzpunkt jeder Prozessverbesserung.' },
+
+/* ===== BLOCK 2 — Ereignistypen, Folien 43–52 ===== */
+{ id:'b2-rim-symbol', block:'b2', topic:'events',
+  question:'Ein Ereignis verrät Ihnen zwei Dinge auf einmal. Welche Zuordnung stimmt?',
+  svg:function(){return tplSingle(ev(150,100,{pos:'inter',type:'timer',r:36}));},
+  options:['Der Rand sagt, wo im Ablauf Sie stehen – das Symbol darin sagt, was eingetreten ist','Das Symbol sagt, wo im Ablauf Sie stehen – der Rand sagt, was eingetreten ist','Der Rand sagt, wer zuständig ist – das Symbol, wie lange es dauert','Beides bedeutet dasselbe'], correct:0,
+  explanation:'Hier: doppelter Rand, also mittendrin – und eine Uhr, also eine Frist. Genau so ist auch die Ereignis-Tabelle aufgebaut: Die Zeile sagt, was passiert, die Spalte sagt, wo es passiert.' },
+
+{ id:'b2-catch-throw', block:'b2', topic:'events',
+  question:'Welches der beiden Zwischenereignisse sendet eine Nachricht?',
+  svg:function(){return svgCatchThrow();},
+  options:['A – das leere Symbol','B – das gefüllte Symbol','Beide','Keines von beiden'], correct:1,
+  explanation:'Die Füllung entscheidet: Ist das Symbol gefüllt, sendet der Prozess etwas (werfend). Ist es leer, wartet er auf etwas (fangend). Eselsbrücke: Ein volles Symbol gibt etwas ab, ein leeres nimmt etwas auf.' },
+
+{ id:'b2-start-catching', block:'b2', topic:'events',
+  question:'Warum sind Startereignisse immer fangend, also nie gefüllt?',
+  svg:function(){return svgMessageStart();},
+  options:['Ein Prozess kann nichts senden, bevor er begonnen hat','Gefüllte Symbole blendet Process Design aus','Startereignisse dürfen kein Symbol tragen','Nur Endereignisse dürfen etwas empfangen'], correct:0,
+  explanation:'Ein Startereignis reagiert immer auf etwas, das von außen kommt oder eintritt – zum Beispiel eine eingehende Nachricht. Senden kann ein Prozess erst, wenn er läuft.' },
+
+{ id:'b2-flow-catch-throw', block:'b2', topic:'events',
+  question:'An welchem der beiden Umschläge bleibt der Token stehen?',
+  svg:function(){return svgThrowInFlow();},
+  options:['Am gefüllten – dort wird die Rückfrage gesendet','Am leeren – dort wartet der Prozess, bis die Antwort eintrifft','An beiden','An keinem – Ereignisse halten den Token nie an'], correct:1,
+  explanation:'Das gefüllte Symbol sendet, der Token läuft ohne Pause weiter. Das leere Symbol fängt: Der Token bleibt stehen, bis die Nachricht eintrifft. Beide Kreise sehen fast gleich aus – nur die Füllung unterscheidet sie.' },
+
+{ id:'b2-boundary-int', block:'b2', topic:'events',
+  question:'Die Frist läuft ab, bevor die Freigabe erteilt ist. Was passiert?',
+  svg:function(){return svgBoundary({act:'Freigabe\neinholen',type:'timer',main:'Vertrag\nabschließen',alt:'Eskalation\nauslösen',cond:'Frist ist\nabgelaufen'});},
+  options:['„Freigabe einholen“ wird abgebrochen, es geht nur über „Eskalation auslösen“ weiter','Beide Folgeaufgaben starten gleichzeitig','„Freigabe einholen“ läuft weiter, zusätzlich startet die Eskalation','Der Prozess endet sofort'], correct:0,
+  explanation:'Der angeheftete Kreis hat einen durchgezogenen Rand, er ist also unterbrechend: Die Aufgabe wird sofort abgebrochen und der Prozess läuft nur über den Ausnahmepfad weiter. Es bleibt bei einem Token – er wechselt nur den Weg.' },
+
+{ id:'b2-boundary-nonint', block:'b2', topic:'events',
+  question:'Während der Bearbeitung geht eine Rückfrage ein. Was passiert?',
+  svg:function(){return svgBoundary({act:'Antrag\nbearbeiten',type:'message',nonInt:true,main:'Bescheid\nversenden',alt:'Rückfrage\nbeantworten',cond:'Rückfrage ist\neingegangen'});},
+  options:['Die Bearbeitung wird abgebrochen','Die Bearbeitung läuft weiter, zusätzlich startet „Rückfrage beantworten“','Die Rückfrage wird ignoriert, bis die Bearbeitung fertig ist','Der Prozess beginnt von vorn'], correct:1,
+  explanation:'Der angeheftete Kreis hat einen gestrichelten Rand, er ist also nicht unterbrechend: Die Aufgabe läuft ungestört weiter und zusätzlich startet ein zweiter Pfad. Aus einem Token werden zwei. Der Rand des angehefteten Kreises entscheidet.' },
+
+{ id:'b2-msg', block:'b2', topic:'events',
+  question:'Wodurch wird dieser Prozess ausgelöst?',
+  svg:function(){return svgMessageStart();},
+  options:['Durch eine eingehende Nachricht, zum Beispiel eine E-Mail oder ein Formular','Zu einem festen Zeitpunkt','Durch einen Fehler in einem anderen Prozess','Durch einen Rundruf an alle Bereiche'], correct:0,
+  explanation:'Der Briefumschlag steht für eine Nachricht: Etwas kommt von außen herein oder geht hinaus. Am Anfang ist das der häufigste Auslöser in der Verwaltung. Ein Nachrichtenereignis hat immer genau einen Absender und einen Empfänger.' },
+
+{ id:'b2-timer', block:'b2', topic:'events',
+  question:'Wann startet dieser Prozess?',
+  svg:function(){return svgTimerStart();},
+  options:['Sobald eine Nachricht eingeht','Zu einer festen Zeit, zum Beispiel an jedem ersten Werktag im Monat','Wenn eine Frist in einem anderen Prozess abläuft','Wenn jemand die Auswertung anfordert'], correct:1,
+  explanation:'Die Uhr steht für ein Timerereignis. Am Anfang startet es den Prozess zu einer festen Zeit. Mittendrin wartet der Prozess eine Frist ab, angeheftet an eine Aufgabe ist es die klassische Fristüberwachung.' },
+
+{ id:'b2-timer-catching', block:'b2', topic:'events',
+  question:'Welches dieser Ereignisse ist immer fangend und kommt niemals gefüllt vor?',
+  svg:function(){return tplChoice4([dEv({pos:'inter',type:'message',r:30}),dEv({pos:'inter',type:'timer',r:30}),dEv({pos:'inter',type:'signal',r:30}),dEv({pos:'inter',type:'escalation',r:30})]);},
+  options:['A – Nachricht','B – Timer','C – Signal','D – Eskalation'], correct:1,
+  explanation:'Ein Timer kann nie werfend sein, denn niemand kann Zeit versenden. Typische Beispiele an der Hochschule: Rückmeldefrist, Widerspruchsfrist, Wiedervorlage.' },
+
+{ id:'b2-error', block:'b2', topic:'events',
+  question:'Was passiert, wenn bei der Zahlung ein Fehler auftritt?',
+  svg:function(){return svgBoundary({act:'Zahlung\nverarbeiten',type:'error',main:'Auftrag\nfreigeben',alt:'Zahlung\nmanuell klären',cond:'Zahlung ist\nfehlgeschlagen'});},
+  options:['Die Verarbeitung wird abgebrochen und die Zahlung manuell geklärt','Die Verarbeitung läuft weiter, parallel wird geklärt','Der Fehler wird ignoriert','Der gesamte Prozess wird neu gestartet'], correct:0,
+  explanation:'Der Blitz steht für einen Fehler: Ein fachliches Problem verhindert den normalen Ablauf. Als Endereignis wird ein Fehler geworfen und nach oben gemeldet. Merksatz: Fehler bricht ab, Eskalation meldet nur.' },
+
+{ id:'b2-escalation', block:'b2', topic:'events',
+  question:'Die Bearbeitung dauert zu lange. Die Dezernatsleitung soll informiert werden, die Bearbeitung läuft aber weiter. Welches Symbol passt?',
+  svg:function(){return tplChoice4([dEv({pos:'inter',type:'error',r:30}),dEv({pos:'inter',type:'escalation',r:30,nonInt:true}),dEv({pos:'inter',type:'condition',r:30,nonInt:true}),dEv({pos:'start',type:'signal',r:30})]);},
+  options:['A – Fehler','B – Eskalation','C – Bedingung','D – Signal'], correct:1,
+  explanation:'Die Eskalation meldet etwas an eine höhere Stelle, ohne dass abgebrochen wird. Anders als beim Fehler läuft der Prozess in der Regel weiter – deshalb hier auch angeheftet und nicht unterbrechend.' },
+
+{ id:'b2-condition', block:'b2', topic:'events',
+  question:'Sobald mehr als 50 Bewerbungen vorliegen, soll eine zusätzliche Kraft angefordert werden. Niemand schickt dafür etwas. Welches Symbol passt?',
+  svg:function(){return tplChoice4([dEv({pos:'inter',type:'error',r:30}),dEv({pos:'inter',type:'escalation',r:30,nonInt:true}),dEv({pos:'inter',type:'condition',r:30,nonInt:true}),dEv({pos:'start',type:'signal',r:30})]);},
+  options:['A – Fehler','B – Eskalation','C – Bedingung','D – Signal'], correct:2,
+  explanation:'Das Bedingungsereignis (das liniierte Blatt) reagiert, sobald eine hinterlegte Bedingung wahr wird. Niemand schickt etwas, es wird laufend geprüft.' },
+
+{ id:'b2-signal', block:'b2', topic:'events',
+  question:'Die Prüfungsordnung wird geändert und alle betroffenen Bereiche sollen darauf reagieren. Welcher Start passt?',
+  svg:function(){return tplChoice4([dEv({pos:'start',type:'message',r:30}),dEv({pos:'start',type:'signal',r:30})]);},
+  options:['A – Nachricht','B – Signal','Beide gleichermaßen','Keiner von beiden'], correct:1,
+  explanation:'Ein Signal (Dreieck) geht an alle, die zuhören – mehrere Prozesse können gleichzeitig darauf reagieren. Eine Nachricht (Umschlag) hat dagegen immer genau einen Absender und einen Empfänger.' },
+
+{ id:'b2-link', block:'b2', topic:'events',
+  question:'Was bedeuten die beiden Pfeil-Ereignisse mit dem Namen „A“?',
+  svg:function(){return svgLinkPair();},
+  options:['Zusammen sind sie ein einziger Pfeil – der Ablauf springt vom gefüllten zum leeren Link','Es sind zwei getrennte Prozesse','Es ist eine Schleife','Es ist eine Nachricht an eine andere Abteilung'], correct:0,
+  explanation:'Zwei Linkereignisse mit demselben Namen ersetzen eine lange Linie quer über das Blatt: „Hier geht es weiter bei A.“ Das werfende Linkereignis führt direkt zum fangenden mit demselben Namen.' },
+
+{ id:'b2-compensation', block:'b2', topic:'events',
+  question:'Welches Symbol steht für die Kompensation – ein bereits abgeschlossener Schritt wird nachträglich zurückgenommen?',
+  svg:function(){return tplChoice4([dEv({pos:'inter',type:'cancel',r:30}),dEv({pos:'end',type:'compensation',filled:true,r:30}),dEv({pos:'start',type:'multiple',r:30}),dEv({pos:'end',type:'terminate',r:30})]);},
+  options:['A – Kreuz im Zwischenereignis','B – Doppelpfeil zurück im Endereignis','C – Fünfeck im Startereignis','D – gefüllter Punkt im Endereignis'], correct:1,
+  explanation:'B zeigt die Kompensation (Doppelpfeil zurück), etwa: Eine bestätigte Buchung wird storniert. A ist der Abbruch: Eine Transaktion wird abgebrochen und alles bisher Getane zurückgenommen. C ist Mehrfach, D die Terminierung. Diese seltenen Typen müssen Sie nur wiedererkennen.' },
+
+{ id:'b2-multi', block:'b2', topic:'events',
+  question:'Welcher Start beginnt erst, wenn sowohl der Antrag als auch die Nachweise vorliegen?',
+  svg:function(){return tplChoice4([dEv({pos:'start',type:'multiple',r:30}),dEv({pos:'start',type:'pmultiple',r:30})]);},
+  options:['A – Mehrfach (Fünfeck)','B – Parallel-Mehrfach (Pluszeichen)','Beide','Keiner von beiden'], correct:1,
+  explanation:'Parallel-Mehrfach wartet, bis alle hinterlegten Ereignisse eingetreten sind. Beim einfachen Mehrfach genügt einer von mehreren Auslösern: „Egal ob der Antrag per Post, per E-Mail oder über das Portal kommt: Er wird erfasst.“' },
+
+{ id:'b2-terminate', block:'b2', topic:'events',
+  question:'Ein Formfehler wird festgestellt und der untere Pfad endet. Was passiert mit der parallel laufenden fachlichen Prüfung?',
+  svg:function(){return svgTerminateCtx();},
+  options:['Sie läuft normal zu Ende','Sie wird sofort abgebrochen – der gesamte Vorgang endet','Sie wird pausiert und später fortgesetzt','Sie startet neu'], correct:1,
+  explanation:'Der gefüllte Punkt im Endereignis kennzeichnet die Terminierung. Anders als ein normales Endereignis, das nur den eigenen Weg beendet, beendet sie sofort den gesamten Prozess – auch parallel laufende Aufgaben werden abgebrochen.' },
+
+/* ===== BLOCK 3 — Aufgabentypen und Aktivitätsarten ===== */
+{ id:'b3-user', block:'b3', topic:'tasks',
+  question:'Was sagt das Personensymbol oben links über die erste Aufgabe?',
+  svg:function(){return svgTaskCtx('user','Antrag im\nSystem prüfen','Bescheid\nfreigeben');},
+  options:['Ein Mensch erledigt sie, unterstützt durch ein System','Das System erledigt sie ganz allein','Sie wird ohne jedes System per Hand erledigt','Sie ist optional'], correct:0,
+  explanation:'Das ist eine Benutzer-Aufgabe (in Process Design: Aufgabentyp „Benutzer“), typisch: eine Aufgabe im Workflow-Postkorb. Beim Lesen heißt das: Hier ist jemand am Zug, hier kann es warten. An solchen Stellen entstehen typischerweise Liegezeiten.' },
+
+{ id:'b3-manual', block:'b3', topic:'tasks',
+  question:'Was bedeutet das Hand-Symbol oben links?',
+  svg:function(){return tplSingle(task(150,100,220,110,'Akte\nablegen',{marker:'manual'}));},
+  options:['Das System erledigt die Aufgabe automatisch','Eine rein körperliche Tätigkeit ganz ohne System','Eine hinterlegte Regel liefert das Ergebnis','Die Aufgabe wartet auf eine Nachricht'], correct:1,
+  explanation:'Das ist eine manuelle Aufgabe (Aufgabentyp „Manuell“). Das System weiß nicht, ob sie erledigt ist. So liest man es: „Der Bescheid wird gedruckt, von Hand kuvertiert und die Akte abgelegt.“' },
+
+{ id:'b3-service', block:'b3', topic:'tasks',
+  question:'Und was bedeutet das Zahnrad oben links?',
+  svg:function(){return tplSingle(task(150,100,220,110,'Daten\nübernehmen',{marker:'service'}));},
+  options:['Ein Mensch arbeitet mit Systemunterstützung','Das System erledigt die Aufgabe allein – niemand muss eingreifen','Die Aufgabe wird mehrfach ausgeführt','Die Aufgabe ist ein Teilprozess'], correct:1,
+  explanation:'Das ist eine Service-Aufgabe (Aufgabentyp „Service“): Das System erledigt sie allein, es entsteht keine Liegezeit. Für die Verwaltung sind Benutzer-, manuelle und Service-Aufgabe die wichtigsten drei Aufgabentypen.' },
+
+{ id:'b3-digital', block:'b3', topic:'tasks',
+  question:'Sie lesen ein Modell mit sehr vielen Aufgaben dieses Typs. Worauf deutet das hin?',
+  svg:function(){return tplChoice4([dTask('Akte\nablegen',{marker:'manual'}),dTask('Liste\nabgleichen',{marker:'manual'}),dTask('Formular\nkopieren',{marker:'manual'})]);},
+  options:['Auf Digitalisierungspotenzial','Auf einen Modellierungsfehler','Auf einen besonders schnellen Prozess','Auf fehlende Zuständigkeiten'], correct:0,
+  explanation:'Häufungen manueller Aufgaben sind der klassische Hinweis auf Digitalisierungspotenzial. Der Aufgabentyp ändert nichts am Ablauf – aber viel am Verständnis.' },
+
+{ id:'b3-receive', block:'b3', topic:'tasks',
+  question:'Welche dieser Aufgaben wartet, bis eine Nachricht eintrifft?',
+  svg:function(){return tplChoice4([dTask('Kennzahlen\nberechnen',{marker:'script'}),dTask('Gebühr\nermitteln',{marker:'rule'}),dTask('Bescheid\nversenden',{marker:'send'}),dTask('Rückmeldung\nempfangen',{marker:'receive'})]);},
+  options:['A – Skript','B – Geschäftsregel','C – Senden (gefüllter Umschlag)','D – Empfangen (leerer Umschlag)'], correct:3,
+  explanation:'Die Empfangs-Aufgabe (Aufgabentyp „Empfangen“) ist so lange aktiv, wie gewartet wird. Die Sende-Aufgabe (Aufgabentyp „Senden“) verschickt eine Nachricht und ist erst beendet, wenn sie raus ist. Wie bei Ereignissen gilt: gefüllt sendet, leer empfängt.' },
+
+{ id:'b3-rule', block:'b3', topic:'tasks',
+  question:'Bei welcher Aufgabe liefert eine hinterlegte Regel oder Entscheidungstabelle das Ergebnis?',
+  svg:function(){return tplChoice4([dTask('Kennzahlen\nberechnen',{marker:'script'}),dTask('Gebühr\nermitteln',{marker:'rule'}),dTask('Bescheid\nversenden',{marker:'send'}),dTask('Rückmeldung\nempfangen',{marker:'receive'})]);},
+  options:['A – Skript','B – Geschäftsregel','C – Senden','D – Empfangen'], correct:1,
+  explanation:'Bei der Geschäftsregel-Aufgabe (Aufgabentyp „Geschäftsregel“) steht die Regel nicht im Modell, sondern daneben, oft als DMN-Tabelle. Die Skript-Aufgabe (A, Aufgabentyp „Skript“) führt dagegen eingebauten Code direkt in der Prozess-Engine aus – anders als die Service-Aufgabe, die ein externes System nutzt.' },
+
+{ id:'b3-sub', block:'b3', topic:'tasks',
+  question:'Was bedeutet das kleine Pluszeichen am unteren Rand?',
+  svg:function(){return svgSubprocess();},
+  options:['Die Aufgabe wird mehrfach ausgeführt','Dahinter steckt ein eigener, ausführlicher Ablauf – ein zugeklappter Teilprozess','Die Aufgabe ist besonders wichtig','Die Aufgabe kann übersprungen werden'], correct:1,
+  explanation:'Beim Teilprozess ist bewusst gerafft, damit das große Bild lesbar bleibt. In Process Design gelangt man per Doppelklick in den hinterlegten Ablauf. Faustregel: Mehr als etwa 20 Elemente auf einer Ebene sind ein Hinweis, dass ein Teilprozess fehlt.' },
+
+{ id:'b3-call', block:'b3', topic:'tasks',
+  question:'Welche Aktivität ruft einen anderswo definierten Prozess auf, der an mehreren Stellen wiederverwendet wird?',
+  svg:function(){return tplChoice4([dTask('Antrag\nprüfen'),dTask('Antrag\nzentral prüfen',{border:'call'}),dTask('Reise\nbuchen',{border:'transaction'}),dTask('Rückfrage\nbeantworten',{border:'eventsub'})]);},
+  options:['A – einfacher Rand','B – dicker Rand','C – doppelter Rand','D – gepunkteter Rand'], correct:1,
+  explanation:'Merksatz: Einfacher Rand ist eine Aufgabe, dicker Rand ein fremder Prozess (Aufruf-Aktivität), doppelter Rand alles oder nichts (Transaktion), gepunkteter Rand ein Ablauf, der von einem Ereignis ausgelöst wird (Ereignis-Teilprozess).' },
+
+{ id:'b3-transaction', block:'b3', topic:'tasks',
+  question:'„Entweder werden Flug, Hotel und Bahn gemeinsam gebucht, oder es wird gar nichts gebucht.“ Welche Aktivität passt?',
+  svg:function(){return tplChoice4([dTask('Antrag\nprüfen'),dTask('Antrag\nzentral prüfen',{border:'call'}),dTask('Reise\nbuchen',{border:'transaction'}),dTask('Rückfrage\nbeantworten',{border:'eventsub'})]);},
+  options:['A – einfacher Rand','B – dicker Rand','C – doppelter Rand','D – gepunkteter Rand'], correct:2,
+  explanation:'Die Transaktion (doppelter Rand) behandelt alle Schritte als eine Einheit: ganz oder gar nicht. Bricht etwas ab, wird alles bereits Getane zurückgenommen – dazu gehört das Abbruch-Ereignis. Der Ereignis-Teilprozess (D) hängt nicht am Sequenzfluss, sondern wird von einem Ereignis ausgelöst.' },
+
+{ id:'b3-loop-marker', block:'b3', topic:'tasks',
+  question:'Was bedeutet der kreisförmige Pfeil am unteren Rand?',
+  svg:function(){return tplSingle(task(150,100,230,110,'Unterlagen\nnachfordern',{bottom:['loop']}));},
+  options:['Die Aufgabe wird wiederholt, bis eine Bedingung erfüllt ist – die Wiederholung steckt in der Aufgabe','Die Aufgabe wird parallel für mehrere Elemente ausgeführt','Die Aufgabe ist ein Teilprozess','Die Aufgabe wird rückgängig gemacht'], correct:0,
+  explanation:'Die Schleifen-Markierung versteckt die Wiederholung in der Aufgabe. Sichtbar im Modell wird eine Schleife nur, wenn ein Pfeil zurückführt. „Es werden so lange Unterlagen nachgefordert, bis der Antrag vollständig ist.“' },
+
+{ id:'b3-mipar', block:'b3', topic:'tasks',
+  question:'Bei welcher Aufgabe werden alle Gutachten gleichzeitig eingeholt?',
+  svg:function(){return tplChoice4([dTask('Unterlagen\nnachfordern',{bottom:['loop']}),dTask('Gutachten\neinholen',{bottom:['mipar']}),dTask('Unterschriften\neinholen',{bottom:['miseq']}),dTask('Unterlagen\npflegen',{bottom:['adhoc']})]);},
+  options:['A – kreisförmiger Pfeil','B – drei senkrechte Striche','C – drei waagerechte Striche','D – Tilde'], correct:1,
+  explanation:'Drei senkrechte Striche: mehrfach parallel, die Aufgabe läuft für mehrere Elemente gleichzeitig. Drei waagerechte Striche: nacheinander, eines nach dem anderen. Wie viele es sind, entscheidet sich erst zur Laufzeit.' },
+
+{ id:'b3-adhoc', block:'b3', topic:'tasks',
+  question:'Bei welcher Aufgabe haben die enthaltenen Schritte keine feste Reihenfolge?',
+  svg:function(){return tplChoice4([dTask('Unterlagen\nnachfordern',{bottom:['loop']}),dTask('Gutachten\neinholen',{bottom:['mipar']}),dTask('Unterschriften\neinholen',{bottom:['miseq']}),dTask('Unterlagen\npflegen',{bottom:['adhoc']})]);},
+  options:['A – kreisförmiger Pfeil','B – drei senkrechte Striche','C – drei waagerechte Striche','D – Tilde'], correct:3,
+  explanation:'Die Tilde markiert eine Ad-hoc-Aktivität: Die Schritte können mehrfach, einmal oder gar nicht ausgeführt werden. Eine weitere seltene Markierung ist die Kompensation (Doppelpfeil zurück): Diese Aufgabe läuft nur im Fall einer Rücknahme.' },
+
+{ id:'b3-default', block:'b3', topic:'data',
+  question:'Was bedeutet der kleine Schrägstrich am unteren Pfad?',
+  svg:function(){return svgDefaultFlow();},
+  options:['Der Pfad ist gesperrt','Der Standardfluss: Er gilt, wenn keine andere Bedingung zutrifft','Der Pfad wird immer zusätzlich ausgeführt','Der Pfad ist optional'], correct:1,
+  explanation:'Der Standardfluss ist das Sicherheitsnetz eines Gateways: der Sonst-Fall. Er verhindert, dass ein Modell stehen bleibt, wenn keine der ausgeschriebenen Antworten zutrifft.' },
+
+{ id:'b3-conditional', block:'b3', topic:'data',
+  question:'Was bedeutet die kleine Raute am Anfang des oberen Pfeils?',
+  svg:function(){return svgConditionalFlow();},
+  options:['Ein bedingter Fluss: Der Weg wird nur genommen, wenn seine Bedingung erfüllt ist','Ein Gateway, das vergessen wurde','Ein Datenobjekt','Ein Nachrichtenfluss'], correct:0,
+  explanation:'Der bedingte Fluss geht direkt von einer Aufgabe ab, ohne Gateway davor. Daneben braucht es einen Standardfluss, sonst bleibt der Vorgang stehen, wenn die Bedingung nicht zutrifft. Das ist die einzige Stelle, an der der Standard zwei Pfeile aus einer Aufgabe erlaubt. Nach unserer Hausregel „ein Pfeil hinein, ein Pfeil hinaus“ modellieren wir so etwas mit einem Gateway – den bedingten Fluss sollen Sie aber in fremden Modellen erkennen.' },
+
+{ id:'b3-assoc', block:'b3', topic:'data',
+  question:'Welche dieser drei Linien steuert den Ablauf überhaupt nicht?',
+  svg:function(){return svgFlowTypes();},
+  options:['A – durchgezogen mit gefüllter Spitze','B – gestrichelt mit offener Spitze','C – gepunktet, ohne Spitze','Alle drei steuern den Ablauf'], correct:2,
+  explanation:'C ist die Assoziation: Sie hängt Zusatzinformationen wie Dokumente und Notizen an, steuert nichts und kostet keine Zeit. A ist der Sequenzfluss (Reihenfolge im Pool), B der Nachrichtenfluss (Kommunikation zwischen Pools).' },
+
+{ id:'b3-dataobj', block:'b3', topic:'data',
+  question:'Welche Aussage über die beiden Zusatzelemente trifft zu?',
+  svg:function(){return svgArtefacts();},
+  options:['Beide steuern den Ablauf und sind zwingend nötig','Oben ein Datenobjekt, rechts eine Textanmerkung – beide erklären nur und steuern nichts','Beide sind Aufgaben','Beide sind Ereignisse'], correct:1,
+  explanation:'Das Datenobjekt (Blatt mit umgeknickter Ecke) sagt, womit gearbeitet wird – in Process Design heißt es „Dokument“. Die Textanmerkung ist ein freier Kommentar, in Process Design „Textannotation“. Beide hängen über gepunktete Linien an und beeinflussen den Ablauf nicht.' },
+
+{ id:'b3-obj-vs-store', block:'b3', topic:'data',
+  question:'Welches der beiden Symbole existiert nur, solange der Prozess läuft?',
+  svg:function(){return tplChoice4([dData(),function(cx,cy){return dataStore(cx,cy);}]);},
+  options:['A – das Datenobjekt','B – der Datenspeicher','Beide','Keines von beiden'], correct:0,
+  explanation:'Das Datenobjekt existiert nur, solange der Prozess läuft. Der Datenspeicher (Zylinder) ist ein Ort, aus dem gelesen und in den geschrieben wird – er bleibt unabhängig vom einzelnen Vorgang bestehen, etwa ein Fachverfahren.' },
+
+{ id:'b3-datastore', block:'b3', topic:'data',
+  question:'Was stellt der Zylinder in diesem Modell dar?',
+  svg:function(){return svgDataStoreCtx();},
+  options:['Einen Datenspeicher, etwa ein Fachverfahren, mit dem Daten abgeglichen werden','Einen Teilprozess','Ein Endereignis','Eine Gruppe von Aufgaben'], correct:0,
+  explanation:'Der Datenspeicher ist das Artefakt, das im Alltag am häufigsten auftaucht, weil er für Fachverfahren steht: „Die Daten werden mit der Studierendenverwaltung abgeglichen.“' },
+
+{ id:'b3-output', block:'b3', topic:'data',
+  question:'Welches Symbol steht für das Ergebnis, das der Prozess nach außen abliefert?',
+  svg:function(){return tplChoice4([dData('collection'),dData('input'),dData('output'),dData()]);},
+  options:['A – drei Striche unten','B – leerer Pfeil','C – gefüllter Pfeil','D – ohne Kennzeichen'], correct:2,
+  explanation:'Der gefüllte Pfeil markiert den Daten-Output, etwa den Zulassungsbescheid. Daran misst sich, ob der Prozess sein Ziel erreicht hat. Der leere Pfeil (B) ist der Daten-Input: eine Information, die schon vorliegt, bevor der Prozess beginnt.' },
+
+{ id:'b3-collection', block:'b3', topic:'data',
+  question:'Welches Symbol steht nicht für ein einzelnes Dokument, sondern für eine ganze Menge davon?',
+  svg:function(){return tplChoice4([dData('collection'),dData('input'),dData('output'),dData()]);},
+  options:['A – drei Striche unten','B – leerer Pfeil','C – gefüllter Pfeil','D – ohne Kennzeichen'], correct:0,
+  explanation:'Die drei Striche kennzeichnen das Listen-Datenobjekt, etwa alle Anträge eines Semesters. In Process Design ist das ein Dokument mit Sammlungskennzeichen.' },
+
+{ id:'b3-group', block:'b3', topic:'data',
+  question:'Was bedeutet der gestrichelte Rahmen um die beiden Aufgaben?',
+  svg:function(){return svgGroupCtx();},
+  options:['Eine Gruppe: Sie fasst zusammengehörige Elemente optisch zusammen und steuert nichts','Ein Teilprozess, der zuerst abgeschlossen sein muss','Eine Lane','Eine Transaktion'], correct:0,
+  explanation:'Die Gruppe fasst zusammengehörige Elemente optisch zusammen, etwa eine Phase. Sie darf sogar Pool- und Lane-Grenzen überschreiten. Wie alle Artefakte erklärt sie nur – beim ersten Lesen darf man sie überspringen.' },
+
+/* ===== BLOCK 4 — Abschlussquiz ===== */
+{ id:'b4-bw', block:'b4', topic:'final',
+  question:'Dieses Modell stammt aus einem anderen Werkzeug und ist schwarz-weiß. Welcher Kreis ist das Endereignis?',
+  svg:function(){return tplChoice4([dEv({pos:'start',r:30,bw:true}),dEv({pos:'inter',r:30,bw:true}),dEv({pos:'end',r:30,bw:true})]);},
+  options:['A – dünner Rand','B – doppelter Rand','C – dicker Rand','Ohne Farbe nicht erkennbar'], correct:2,
+  explanation:'Die Farben grün, orange und schwarz sind eine Konvention von GBTEC Process Design, kein BPMN-Standard. Modelle aus anderen Werkzeugen sind meist schwarz-weiß. Die Randstärke gilt dagegen überall: dünn am Anfang, doppelt mittendrin, dick am Ende.' },
+
+{ id:'b4-bic-extra', block:'b4', topic:'final',
+  question:'In echten HBRS-Modellen hängen oft Zusatzsymbole aus GBTEC Process Design für Anwendungen, Risiken oder Kennzahlen über gepunktete Linien an Aufgaben. Was gilt für sie?',
+  svg:function(){return svgArtefacts();},
+  options:['Sie gehören nicht zum BPMN-Standard und steuern den Ablauf nicht','Sie legen die Reihenfolge der Aufgaben fest','Sie ersetzen die Lanes','Sie sind Pflicht in jedem BPMN-Modell'], correct:0,
+  explanation:'GBTEC Process Design ergänzt die BPMN um Symbole für Organisation, IT, Risiken und Kennzahlen. Sie beantworten Zusatzfragen – womit wird gearbeitet, wer ist zuständig, welches Risiko besteht – verändern aber nie den Weg des Tokens.' },
+
+{ id:'b4-cap-frame', block:'b4', topic:'final',
+  question:'Schritt 1 des Drei-Schritte-Vorgehens heißt „Rahmen erfassen“. Was klären Sie dabei?',
   svg:function(){return svgCapstone();},
-  options:['Der Prozess startet automatisch zu einem festen Zeitpunkt','Nach einer Überarbeitung wird der Antrag erneut geprüft','Der Prozess kann nur genau einmal durchlaufen werden','„Bescheid versenden" wird in jedem Fall ausgeführt'], correct:1,
-  explanation:'Der Rücksprung führt auf das XOR-Gateway vor „Antrag prüfen" - überarbeitete Anträge durchlaufen die Prüfung also erneut, beliebig oft. Der Start ist übrigens ein Nachrichten-Startereignis, nicht zeitgesteuert.' }
+  options:['Wo der Prozess beginnt und endet, wie viele Endereignisse es gibt und wer beteiligt ist','Welche Dokumente an den Aufgaben hängen','Welche Gateways falsch modelliert sind','Wie lange jede Aufgabe dauert'], correct:0,
+  explanation:'Die drei Schritte: 1. Rahmen erfassen, 2. einen Pfad verfolgen – einen Token gedanklich durchlaufen lassen und den Weg laut nacherzählen, 3. Varianten prüfen – die anderen Wege und Ausnahmen. Dokumente und Notizen kommen erst ganz zum Schluss.' },
+
+{ id:'b4-cap-loop', block:'b4', topic:'final',
+  question:'Wie oft können in diesem Prozess Unterlagen nachgefordert werden?',
+  svg:function(){return svgCapstone();},
+  options:['Genau einmal','Beliebig oft – der Rücksprung führt über das XOR-Gateway zurück in die Prüfung','Gar nicht','Nur so oft, wie es Vorgesetzte gibt'], correct:1,
+  explanation:'Ist die Antwort auf „Unterlagen vollständig?“ nein, wird nachgefordert und der Token läuft über das zusammenführende XOR-Gateway zurück in „Antrag prüfen“. Das kann beliebig oft geschehen – erst mit vollständigen Unterlagen geht es weiter.' },
+
+{ id:'b4-cap-who', block:'b4', topic:'final',
+  question:'Wer entscheidet über die Dienstreise?',
+  svg:function(){return svgCapstone();},
+  options:['Die Reisekostenstelle','Die Vorgesetzten','Die Beschäftigten selbst','Das Gateway „Unterlagen vollständig?“'], correct:1,
+  explanation:'„Dienstreise genehmigen“ liegt in der Lane „Vorgesetzte“ – dort ist die Zuständigkeit. Das Gateway entscheidet nichts, es leitet nur weiter, und prüft hier ohnehin nur die Vollständigkeit.' },
+
+{ id:'b4-cap-handover', block:'b4', topic:'final',
+  question:'Wie viele Übergaben zwischen Lanes gibt es innerhalb der Hochschule, wenn nichts nachgefordert werden muss?',
+  svg:function(){return svgCapstone();},
+  options:['Keine','Eine','Zwei – zu den Vorgesetzten und zurück zur Reisekostenstelle','Vier'], correct:2,
+  explanation:'Der Token wechselt von der Reisekostenstelle zu den Vorgesetzten und nach der Genehmigung wieder zurück. Jeder dieser Wechsel ist eine Übergabe – potenzielle Wartezeit. Der Austausch mit den Beschäftigten läuft über Nachrichten zwischen Pools, nicht über Lanes.' },
+
+{ id:'b4-cap-gap', block:'b4', topic:'final',
+  question:'Welche der zehn Prüffragen deckt eine Lücke in diesem Modell auf?',
+  svg:function(){return svgCapstone();},
+  options:['„Sind Ausnahmen sichtbar oder nur im Kopf der Beteiligten?“ – eine Ablehnung ist nicht modelliert','„Trägt jede Aufgabe ein Verb in der Beschriftung?“','„Bleiben alle Sequenzflüsse innerhalb ihres Pools?“','„Endet jede Schleife an einem sichtbaren Gateway?“'], correct:0,
+  explanation:'Im Modell können die Vorgesetzten die Reise nur genehmigen. Was bei einer Ablehnung passiert, steht nirgends – diese Ausnahme existiert nur im Kopf der Beteiligten. Alle anderen genannten Prüffragen sind hier erfüllt.' },
+
+{ id:'b4-check-default', block:'b4', topic:'final',
+  question:'Anträge kommen seit Kurzem auch über das Online-Portal. Welche Prüffrage deckt das Problem auf?',
+  svg:function(){return tplXorTwoEnds({first:'Antrag\nsichten', q:'Eingangs-\nkanal?', up:'Papierantrag\nscannen', down:'Anhang\nspeichern', condUp:'Post', condDown:'E-Mail'});},
+  options:['„Gibt es zu jedem Sonst-Fall einen Weg?“','„Trägt jede Aufgabe ein Verb in der Beschriftung?“','„Ist jedes Element mit einem Pfeil verbunden?“','„Gibt es ein Startereignis und mindestens ein Endereignis?“'], correct:0,
+  explanation:'Ein Portal-Antrag findet am Gateway keinen passenden Weg und bleibt stehen. Abhilfe: ein dritter Pfad oder ein Standardfluss für den Sonst-Fall. Bei mehr als zwei ausgeschriebenen Antworten gehört immer ein Sonst-Fall dazu.' },
+
+{ id:'b4-check-join', block:'b4', topic:'final',
+  question:'Welche Prüffrage schlägt hier an – und was wäre die Folge?',
+  svg:function(){return tplSplitJoin({split:'and',join:'xor',first:'Einstellung\nbestätigen',up:'Arbeitsplatz\neinrichten',down:'Zugänge\nanlegen',after:'Einarbeitung\nstarten'});},
+  options:['„Passen verzweigendes und zusammenführendes Gateway zusammen?“ – die Einarbeitung würde zweimal gestartet','„Passen verzweigendes und zusammenführendes Gateway zusammen?“ – der Prozess bliebe für immer stehen','„Ist an jedem exklusiven Gateway jede Bedingung benannt?“ – die Einarbeitung fiele aus','„Gibt es ein Startereignis und mindestens ein Endereignis?“ – der Prozess endet nie'], correct:0,
+  explanation:'Das parallele Gateway erzeugt zwei Token, das exklusive Gateway lässt jeden einzeln durch – die Einarbeitung startet doppelt. Stehen bleiben würde der Prozess im umgekehrten Fall: XOR verzweigt, UND führt zusammen.' },
+
+{ id:'b4-eventgw-choice', block:'b4', topic:'final',
+  question:'Ein Prozess soll auf die Antwort einer externen Stelle warten – aber höchstens 14 Tage. Welches Gateway gehört an die Verzweigung?',
+  svg:function(){return tplChoice4([dGw('xor'),dGw('and'),dGw('or'),dGw('eventgw')]);},
+  options:['A – exklusiv','B – parallel','C – inklusiv','D – ereignisbasiert'], correct:3,
+  explanation:'Klassisches Muster gegen endloses Warten: Nachricht gegen Frist. Ein exklusives Gateway würde sofort anhand vorhandener Daten entscheiden – zum Zeitpunkt der Verzweigung gibt es aber noch keine Antwort. Das ereignisbasierte Gateway wartet ab, wer zuerst kommt.' },
+
+{ id:'b4-nested', block:'b4', topic:'final',
+  question:'Welche Kombination von Aufgaben kann in EINEM Durchlauf vorkommen?',
+  svg:function(){return svgNested();},
+  options:['„Rechnung erstellen“ und „Versand beauftragen“','„Versand beauftragen“ und „Abholung avisieren“','Nur „Rechnung erstellen“','Keine – der Prozess blockiert'], correct:0,
+  explanation:'Das parallele Gateway startet beide Zweige. Im unteren Zweig wählt das exklusive Gateway genau einen Weg. In jedem Durchlauf laufen also „Rechnung erstellen“ und genau eine der beiden Versandaufgaben.' },
+
+{ id:'b4-tokens', block:'b4', topic:'final',
+  question:'Wie viele Token sind gleichzeitig unterwegs, während „Termin planen“ bearbeitet wird?',
+  svg:function(){return svgTokenCount();},
+  options:['Einer','Zwei','Drei','Vier'], correct:2,
+  explanation:'Das erste parallele Gateway macht aus einem Token zwei. Im oberen Zweig teilt ein weiteres paralleles Gateway seinen Token noch einmal. So laufen drei Token gleichzeitig: zwei oben, einer unten.' },
+
+{ id:'b4-suberror', block:'b4', topic:'final',
+  question:'Im Teilprozess „Zahlung verarbeiten“ tritt ein Fehler auf. Was passiert?',
+  svg:function(){return svgSubError();},
+  options:['Der gesamte Prozess bricht ohne Ergebnis ab','Der Teilprozess wird abgebrochen, weiter geht es über „Zahlung manuell klären“','Der Teilprozess wird automatisch wiederholt','Beide Folgeaufgaben starten gleichzeitig'], correct:1,
+  explanation:'Im Teilprozess wird ein Fehler geworfen und nach oben gemeldet. Das angeheftete, unterbrechende Fehler-Ereignis fängt ihn ab: Der Teilprozess wird abgebrochen, der Prozess folgt dem Fehlerpfad. So werden Ausnahmen sichtbar statt verschwiegen.' },
+
+{ id:'b4-nonint-tokens', block:'b4', topic:'final',
+  question:'Eine Woche ist vergangen, das Gutachten ist noch nicht fertig. Wie viele Token sind jetzt unterwegs?',
+  svg:function(){return svgBoundary({act:'Gutachten\nerstellen',type:'timer',nonInt:true,main:'Gutachten\nversenden',alt:'Erinnerung\nversenden',cond:'Woche ist\nvergangen'});},
+  options:['Einer – die Erstellung wird abgebrochen','Zwei – die Erstellung läuft weiter, zusätzlich wird erinnert','Keiner – der Prozess wartet','Drei'], correct:1,
+  explanation:'Der angeheftete Timer hat einen gestrichelten Rand, er unterbricht also nicht: Die Erstellung läuft weiter, zusätzlich startet der Erinnerungspfad. Aus einem Token werden zwei. Bei durchgezogenem Rand wäre die Erstellung abgebrochen worden.' }
 ];
 
 /* ============================================================
-   SECTIONS
+   SECTIONS — one per exercise slot in the presentation
    ============================================================ */
-var SECTIONS = [
-  {key:'symbols',  title:'Symbole lesen',        desc:'Alle wichtigen Elemente erkennen'},
-  {key:'flow',     title:'Ablauf verstehen',     desc:'Reihenfolgen, Warten und Zusammenspiel'},
-  {key:'gateways', title:'Gateways analysieren', desc:'Verzweigungslogik durchschauen'},
-  {key:'errors',   title:'Fehler finden',        desc:'Modellierungsfehler aufspüren'},
-  {key:'final',    title:'Abschlussquiz',        desc:'Neue, fordernde Aufgaben zum Schluss'}
-].map(function(m){
-  return { key:m.key, title:m.title, desc:m.desc, exercises: EXERCISES.filter(function(e){ return e.category===m.key; }) };
+(function(){
+  /* questions with lettered images keep their A–D order, all others are shuffled */
+  EXERCISES.forEach(function(ex){
+    if(ex.fixedOrder === undefined){
+      var lettered = ex.options.filter(function(o){ return /^[A-D](?=[\s,\u2013-]|$)/.test(o); }).length;
+      ex.fixedOrder = lettered >= 2;
+    }
+  });
+})();
+var SECTIONS = BLOCKS.map(function(b){
+  return { key:b.key, title:b.title, desc:b.desc, slide:b.slide, color:b.color,
+           exercises: EXERCISES.filter(function(e){ return e.block===b.key; }) };
 });
-
 /* ============================================================
    APP STATE & RENDERING
    ============================================================ */
@@ -1380,9 +1973,10 @@ function feedbackMarkup(ex, wasCorrect, nextLabel){
 function renderIntro(){
   var cards = SECTIONS.map(function(s,i){
     return '<button type="button" class="section-btn" data-sec="'+i+'">'
-      + '<span class="dot" style="background:'+CATEGORIES[s.key].color+'"></span>'
+      + '<span class="dot" style="background:'+s.color+'"></span>'
       + '<span class="txt"><b>'+s.title+'</b>'
-      + '<span class="desc">'+s.desc+' · '+s.exercises.length+' Aufgaben</span></span>'
+      + '<span class="desc">'+s.desc+'</span>'
+      + '<span class="desc">'+s.exercises.length+' Aufgaben</span></span>'
       + '<span class="chev">&rsaquo;</span>'
       + '</button>';
   }).join('');
@@ -1391,8 +1985,8 @@ function renderIntro(){
     + '<div>'
     + '<div class="eyebrow">BPMN Training</div>'
     + '<h1>BPMN lesen lernen</h1>'
-    + '<p class="lead">'+EXERCISES.length+' Übungen in '+SECTIONS.length+' Abschnitten - vom einzelnen Symbol bis zum Abschlussquiz. Ganz ohne Zeitdruck.</p>'
-    + '<p class="jump-hint">Tippe auf einen Abschnitt, um direkt dort einzusteigen:</p>'
+    + '<p class="lead">'+'Drei Übungen passend zur Schulung und ein Abschlussquiz – insgesamt '+EXERCISES.length+' Aufgaben, ganz ohne Zeitdruck.</p>'
+    + '<p class="jump-hint">Tippe auf die Übung, die in der Schulung gerade dran ist:</p>'
     + '<div class="section-list">'+cards+'</div>'
     + '<p class="note">Nach jedem Abschnitt gibt es ein Zwischenfazit - dort kannst du den Abschnitt wiederholen oder weitergehen.</p>'
     + '</div>'
@@ -1408,7 +2002,10 @@ function renderIntro(){
 function initSection(secIdx){
   var exs = SECTIONS[secIdx].exercises;
   state.answers[secIdx] = new Array(exs.length).fill(null);
-  state.shuffles[secIdx] = exs.map(function(e){ return shuffledIndices(e.options.length); });
+  state.shuffles[secIdx] = exs.map(function(e){
+    if(e.fixedOrder){ return e.options.map(function(_,k){ return k; }); }
+    return shuffledIndices(e.options.length);
+  });
 }
 
 function startAtSection(secIdx){
@@ -1450,7 +2047,7 @@ function renderExercise(){
   var section = SECTIONS[state.sectionIdx];
   var exs = section.exercises;
   var ex = exs[state.posIdx];
-  var cat = CATEGORIES[ex.category];
+  var cat = TOPICS[ex.topic];
   var total = exs.length;
   var shuffle = state.shuffles[state.sectionIdx][state.posIdx];
   var sectionAnswers = state.answers[state.sectionIdx];
@@ -1484,7 +2081,7 @@ function renderExercise(){
     '<div class="screen exercise">'
     + '<header class="topbar">'
     + '<div class="section-row">'
-    + '<span class="section-label">Abschnitt '+(state.sectionIdx+1)+' von '+SECTIONS.length+' · '+section.title+'</span>'
+    + '<span class="section-label">'+section.title+'</span>'
     + '<button type="button" class="reset-link" id="resetBtn">Neu starten</button>'
     + '</div>'
     + '<div class="progress-track" style="--c-active:'+cat.color+'">'
@@ -1601,7 +2198,7 @@ function renderCheckpoint(){
     rowsHtml = '<div class="cat-list">' + SECTIONS.map(function(s,i){
       var d = sectionScore(i);
       var done = sectionAttempted(i);
-      var c = CATEGORIES[s.key].color;
+      var c = s.color;
       if(done){ allCorrect += d.correct; allTotal += d.total; }
       var p = (done && d.total) ? Math.round(d.correct/d.total*100) : 0;
       var right = done ? (d.correct+' / '+d.total) : 'nicht bearbeitet';
@@ -1612,20 +2209,38 @@ function renderCheckpoint(){
     }).join('') + '</div>';
     pct = allTotal ? Math.round(allCorrect/allTotal*100) : 0;
     sc = { correct:allCorrect, total:allTotal };
+  } else {
+    var byTopic = {}, topicOrder = [];
+    var answers = state.answers[secIdx] || [];
+    section.exercises.forEach(function(ex,i){
+      if(!byTopic[ex.topic]){ byTopic[ex.topic] = {correct:0,total:0}; topicOrder.push(ex.topic); }
+      byTopic[ex.topic].total++;
+      if(answers[i] === ex.correct) byTopic[ex.topic].correct++;
+    });
+    rowsHtml = '<div class="cat-list">' + topicOrder.map(function(k){
+      var d = byTopic[k], t = TOPICS[k];
+      var pp = d.total ? Math.round(d.correct/d.total*100) : 0;
+      return '<div class="cat-row">'
+        + '<div class="cat-head"><span>'+t.label+'</span><span>'+d.correct+' / '+d.total+'</span></div>'
+        + '<div class="cat-bar"><span style="width:'+pp+'%;background:'+t.color+'"></span></div>'
+        + '</div>';
+    }).join('') + '</div>';
   }
+  var pauseHint = isFinal ? ''
+    : '<p class="resume-hint">In der Schulung geht es jetzt mit dem nächsten Kapitel weiter. Die nächste Übung startest du, wenn sie dran ist – dein Stand bleibt gespeichert.</p>';
 
   var primaryLabel = isFinal ? 'Training neu starten' : 'Weiter: '+SECTIONS[secIdx+1].title+' &rarr;';
-  var secondaryLabel = isFinal ? 'Abschlussquiz wiederholen' : 'Abschnitt wiederholen';
-  var eyebrow = isFinal ? 'Gesamtergebnis' : 'Zwischenfazit · Abschnitt '+(secIdx+1)+' von '+SECTIONS.length;
+  var secondaryLabel = isFinal ? 'Abschlussquiz wiederholen' : 'Übung wiederholen';
+  var eyebrow = isFinal ? 'Gesamtergebnis' : 'Zwischenfazit · '+section.title;
 
   root.innerHTML =
     '<div class="screen result">'
     + '<div class="eyebrow">'+eyebrow+'</div>'
     + '<h1>'+tierMessage(pct)+'</h1>'
     + '<p class="score">'+(isFinal?'Insgesamt ':'')+sc.correct+' von '+sc.total+' Aufgaben richtig gelöst.</p>'
-    + (isFinal ? '' : '<p class="score">'+section.title+'</p>')
     + rowsHtml
     + '<div class="cta">'
+    + pauseHint
     + '<button class="primary" id="primaryBtn">'+primaryLabel+'</button>'
     + '<button class="secondary" id="secondaryBtn">'+secondaryLabel+'</button>'
     + '</div>'
